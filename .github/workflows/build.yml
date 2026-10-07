@@ -1,4 +1,4 @@
-name: Build G935L Kernel
+name: Inspect G935L Kernel
 
 on:
   workflow_dispatch:
@@ -7,169 +7,64 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  inspect:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git make bc bison flex \
-            build-essential gcc-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabi \
-            libssl-dev libelf-dev \
-            python3 cpio rsync
-
       - name: Clone kernel source
         run: |
           git clone --depth=1 \
             https://github.com/8890q/android_kernel_samsung_universal8890.git \
             kernel
 
-      - name: Check source
+      - name: Inspect S5E8890 CPU DFS
         working-directory: kernel
         run: |
-          echo "=== Kernel source ==="
-          git log -1 --oneline
-
-          echo
-          echo "=== Hero2LTE defconfig ==="
-          find . -iname '*hero2lte*defconfig' -print
-
-      - name: Inspect Exynos 8890 CPU/GPU
-        working-directory: kernel
-        run: |
-          set -o pipefail
-
           echo "========================================"
-          echo "=== EXYNOS 8890 CPUFREQ FILES ==="
-          echo "========================================"
-
-          find drivers/cpufreq -type f \
-            \( -iname '*exynos*' -o -iname '*8890*' \) \
-            -print
-
-          echo
-          echo "========================================"
-          echo "=== CPUFREQ 8890 SYMBOLS / TABLES ==="
-          echo "========================================"
-
-          grep -RniE \
-            'exynos.*cpufreq|cpufreq.*exynos|freq_table|frequency_table|cpu_clk|cluster|cpu_cluster|dvfs' \
-            drivers/cpufreq \
-            2>/dev/null \
-            | grep -Ei '8890|exynos-mp|exynos-cpufreq' \
-            | head -n 500 || true
-
-          echo
-          echo "========================================"
-          echo "=== 8890 CPU CLOCK VALUES ==="
-          echo "========================================"
-
-          grep -RniE \
-            '([0-9]{6,9})|[0-9]+\s*[kKmMgG][hH][zZ]' \
-            drivers/cpufreq/exynos-mp-cpufreq.c \
-            drivers/cpufreq/exynos-mp-cpufreq-cal.c \
-            drivers/cpufreq/exynos-cpufreq.c \
-            2>/dev/null \
-            | head -n 500 || true
-
-          echo
-          echo "========================================"
-          echo "=== EXYNOS 8890 POWER CALIBRATION ==="
-          echo "========================================"
-
-          find drivers/soc/samsung/pwrcal/S5E8890 \
-            -type f \
-            -maxdepth 1 \
-            -print
-
-          echo
-          echo "=== DFS / PLL / ASV references ==="
-
-          grep -RniE \
-            'dfs|pll|asv|cpu|cluster|mif|int|disp|cam' \
-            drivers/soc/samsung/pwrcal/S5E8890 \
-            2>/dev/null \
-            | head -n 500 || true
-
-          echo
-          echo "========================================"
-          echo "=== MALI EXYNOS 8890 ==="
-          echo "========================================"
-
-          find drivers/gpu/arm \
-            -type f \
-            -iname '*exynos8890*' \
-            -print
-
-          echo
-          echo "=== MALI DVFS REFERENCES ==="
-
-          grep -RniE \
-            'dvfs|freq|frequency|clock|gpu|mali' \
-            drivers/gpu/arm/t8xx \
-            2>/dev/null \
-            | grep -Ei 'exynos8890|r[0-9]+p[0-9]+' \
-            | head -n 700 || true
-
-          echo
-          echo "========================================"
-          echo "=== 8890 CLOCK DRIVER ==="
+          echo "=== S5E8890 DFS CPU REFERENCES ==="
           echo "========================================"
 
           grep -nEi \
-            'cpu|mali|gpu|clock|pll|freq|8890' \
-            drivers/clk/samsung/clk-exynos8890.c \
-            2>/dev/null \
-            | head -n 500 || true
-
-      - name: Build kernel
-        working-directory: kernel
-        run: |
-          set -o pipefail
-
-          echo "=== Configure kernel ==="
-
-          make ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            exynos8890-hero2lte_defconfig
+            'cpu|cl0|cl1|cluster|big|little|freq|frequency|rate|volt|voltage|dfs|pll|cpucl0|cpucl1' \
+            drivers/soc/samsung/pwrcal/S5E8890/S5E8890-dfs.c \
+            | head -n 1000 || true
 
           echo
-          echo "=== Build kernel ==="
+          echo "========================================"
+          echo "=== EXYNOS CPUFREQ CALIBRATION ==="
+          echo "========================================"
 
-          make -j2 \
-            ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            2>&1 | tee ../build.log
+          grep -nEi \
+            'CL_ZERO|CL_ONE|freq_table|volt_table|frequency|voltage|cpu|cluster|cal|dfs' \
+            drivers/cpufreq/exynos-mp-cpufreq-cal.c \
+            | head -n 1000 || true
 
-      - name: Upload inspection log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: exynos8890-inspection-log
-          path: |
-            kernel/
-          if-no-files-found: ignore
+          echo
+          echo "========================================"
+          echo "=== CPUFREQ MAIN DRIVER ==="
+          echo "========================================"
 
-      - name: Upload build logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-build-logs
-          path: build.log
-          if-no-files-found: ignore
+          grep -nEi \
+            'CL_ZERO|CL_ONE|freq_table|volt_table|frequency|cpu|cluster|cal' \
+            drivers/cpufreq/exynos-mp-cpufreq.c \
+            | head -n 1000 || true
 
-      - name: Upload kernel output
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: G935L-kernel-output
-          path: |
-            kernel/arch/arm64/boot/Image
-            kernel/arch/arm64/boot/Image.gz
-            kernel/arch/arm64/boot/dts/**/*.dtb
-          if-no-files-found: warn
+          echo
+          echo "========================================"
+          echo "=== S5E8890 PLL ==="
+          echo "========================================"
+
+          grep -nEi \
+            'cpu|cl0|cl1|cluster|freq|frequency|rate|pll|div' \
+            drivers/soc/samsung/pwrcal/S5E8890/S5E8890-pll.c \
+            | head -n 1000 || true
+
+          echo
+          echo "========================================"
+          echo "=== S5E8890 VCLK ==="
+          echo "========================================"
+
+          grep -nEi \
+            'cpu|cl0|cl1|cluster|freq|frequency|rate|pll|div' \
+            drivers/soc/samsung/pwrcal/S5E8890/S5E8890-vclk.c \
+            | head -n 1000 || true
