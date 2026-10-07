@@ -37,31 +37,41 @@ jobs:
           echo "=== Available hero2lte defconfigs ==="
           find . -iname '*hero2lte*defconfig' -print
 
-      - name: Find CPU GPU frequency code
+      - name: Find Exynos 8890 DVFS tables
         working-directory: kernel
         run: |
-          echo "=== CPU frequency references ==="
-          grep -RniE \
-            "2600000|1600000|cpu.*freq|freq.*cpu|dvfs" \
-            drivers arch/arm64 2>/dev/null | head -n 200 || true
+          echo "=== CPUFREQ ==="
+
+          find drivers arch -type f \
+            \( -iname '*cpufreq*' -o -iname '*8890*' -o -iname '*exynos*' \) \
+            -print \
+            | grep -Ei 'cpufreq|8890|exynos' \
+            | head -n 300
 
           echo
-          echo "=== GPU / Mali files ==="
+          echo "=== CPU frequency tables ==="
+
+          grep -RniE \
+            'cpufreq_frequency_table|freq_table|frequency_table|2600000|2700000|2800000' \
+            drivers/cpufreq arch/arm64/mach-exynos \
+            2>/dev/null \
+            | grep -Ei '8890|exynos|midas|arm|cpu' \
+            | head -n 300 || true
+
+          echo
+          echo "=== MALI T880 ==="
+
           find drivers/gpu -type f \
-            \( -iname '*mali*' -o -iname '*dvfs*' -o -iname '*gpu*' \) \
-            -print | head -n 200
+            | grep -Ei 'mali|exynos|8890' \
+            | head -n 300
 
           echo
-          echo "=== GPU clock references ==="
-          grep -RniE \
-            "806000|800000|900000|912000|912" \
-            drivers/gpu arch/arm64 2>/dev/null | head -n 200 || true
+          echo "=== MALI DVFS / clocks ==="
 
-          echo
-          echo "=== Exynos 8890 frequency references ==="
           grep -RniE \
-            "8890|MALI|mali|DVFS|frequency|frequency_table" \
-            arch/arm64/mach-exynos drivers/cpufreq drivers/gpu 2>/dev/null \
+            'mali.*freq|freq.*mali|dvfs|806000|800000|900000|912000' \
+            drivers/gpu \
+            2>/dev/null \
             | head -n 300 || true
 
       - name: Build kernel
