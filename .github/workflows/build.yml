@@ -1,4 +1,4 @@
-name: Inspect CPU GPU DVFS
+name: Inspect G935L GPU DVFS
 
 on:
   workflow_dispatch:
@@ -17,65 +17,224 @@ jobs:
             https://github.com/8890q/android_kernel_samsung_universal8890.git \
             kernel
 
-      - name: Dump CPU DVFS tables
+      - name: Basic source info
         working-directory: kernel
         run: |
           echo "========================================"
-          echo "=== EXYNOS8890 CPU DVFS TABLES ==="
+          echo "KERNEL SOURCE"
           echo "========================================"
-
-          sed -n '475,525p' arch/arm64/boot/dts/exynos8890.dtsi
-
-      - name: Find GPU DVFS definitions
-        working-directory: kernel
-        run: |
+          git log -1 --oneline
           echo
+          echo "Kernel version:"
+          grep -n "^VERSION\|^PATCHLEVEL\|^SUBLEVEL" Makefile | head
+
+      - name: GPU DVFS table
+        working-directory: kernel
+        run: |
           echo "========================================"
-          echo "=== GPU / G3D DVFS REFERENCES ==="
+          echo "GPU DVFS TABLE - FULL CONTEXT"
+          echo "========================================"
+
+          sed -n '1,180p' \
+            drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c
+
+      - name: GPU clock definitions
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "GPU CLOCK DEFINITIONS"
           echo "========================================"
 
           grep -RniE \
-            'g3d|gpu|mali|3d_dvfs|dvfs.*3d|g3d_dvfs|mali_dvfs' \
+            "gpu_max_clock|gpu_min_clock|gpu_dvfs_table|gpu_clock" \
+            drivers/gpu/arm/t8xx/r15p0/platform/exynos \
+            drivers/gpu/arm/t8xx \
+            include \
+            2>/dev/null | head -n 300
+
+      - name: GPU DVFS struct definitions
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "GPU DVFS STRUCT DEFINITIONS"
+          echo "========================================"
+
+          grep -RniE \
+            "struct gpu_dvfs_table|struct.*dvfs.*table|gpu_dvfs_table" \
+            drivers/gpu/arm/t8xx/r15p0 \
+            drivers/gpu/arm/t8xx \
+            include \
+            2>/dev/null | head -n 300
+
+      - name: G3D DFS references
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "G3D DFS REFERENCES"
+          echo "========================================"
+
+          grep -RniE \
+            "dfsg3d_table|dvfs_g3d|G3D_PLL|g3d_rate|cal_dfs_set_rate|cal_dfs_get_rate" \
+            drivers/soc/samsung/pwrcal/S5E8890 \
             arch/arm64/boot/dts \
-            drivers \
-            --include='*.dts' \
-            --include='*.dtsi' \
-            --include='*.c' \
-            --include='*.h' \
-            | head -n 250
-
-      - name: Find DVFS table symbols
-        working-directory: kernel
-        run: |
-          echo
-          echo "========================================"
-          echo "=== DVFS TABLE SYMBOLS ==="
-          echo "========================================"
-
-          grep -RniE \
-            'dfsbig_table|dfslittle_table|dfsg3d_table|cl0_dvfs_table|cl1_dvfs_table|g3d_dvfs_table' \
-            . \
-            --include='*.c' \
-            --include='*.h' \
-            --include='*.dts' \
-            --include='*.dtsi' \
-            | head -n 250
-
-      - name: Find 912 MHz related values
-        working-directory: kernel
-        run: |
-          echo
-          echo "========================================"
-          echo "=== POSSIBLE GPU FREQUENCIES ==="
-          echo "========================================"
-
-          grep -RniE \
-            '912000|900000|897000|880000|806000|800000|MHz|khz' \
             drivers/gpu \
+            2>/dev/null | head -n 500
+
+      - name: G3D DFS table context
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "G3D DFS TABLE CONTEXT"
+          echo "========================================"
+
+          FILE="drivers/soc/samsung/pwrcal/S5E8890/S5E8890-dfs.c"
+
+          if [ -f "$FILE" ]; then
+            grep -n -B 20 -A 80 \
+              "dfsg3d_table" "$FILE" || true
+          else
+            echo "S5E8890-dfs.c not found"
+          fi
+
+      - name: G3D PLL context
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "G3D PLL CONTEXT"
+          echo "========================================"
+
+          FILE="drivers/soc/samsung/pwrcal/S5E8890/S5E8890-pll.c"
+
+          if [ -f "$FILE" ]; then
+            grep -n -B 30 -A 100 \
+              "G3D_PLL\|g3d" "$FILE" || true
+          else
+            echo "S5E8890-pll.c not found"
+          fi
+
+      - name: DFS rate implementation
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "DFS RATE IMPLEMENTATION"
+          echo "========================================"
+
+          grep -RniE \
+            "int dfs_set_rate|unsigned long dfs_get_rate|dfs_set_rate|dfs_get_rate" \
             drivers/soc/samsung/pwrcal \
+            2>/dev/null | head -n 300
+
+      - name: CAL DFS implementation context
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "CAL DFS IMPLEMENTATION CONTEXT"
+          echo "========================================"
+
+          grep -Rnl \
+            "dfs_set_rate" \
+            drivers/soc/samsung/pwrcal \
+            2>/dev/null | while read FILE; do
+              echo
+              echo "----------------------------------------"
+              echo "FILE: $FILE"
+              echo "----------------------------------------"
+
+              grep -n -B 20 -A 60 \
+                "dfs_set_rate" "$FILE" || true
+            done
+
+      - name: Exynos 8890 DTS clock information
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "EXYNOS8890 DTS - CLOCK INFORMATION"
+          echo "========================================"
+
+          grep -n -B 20 -A 80 \
+            "g3d\|gpu\|G3D" \
+            arch/arm64/boot/dts/exynos8890.dtsi \
+            2>/dev/null | head -n 500
+
+      - name: All 8890 GPU frequency references
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "ALL 8890 GPU FREQUENCY REFERENCES"
+          echo "========================================"
+
+          grep -RniE \
+            "650000|650|600000|600|546000|546|419000|419|338000|338|260000|260" \
+            drivers/gpu/arm/t8xx \
+            drivers/soc/samsung/pwrcal/S5E8890 \
             arch/arm64/boot/dts \
-            --include='*.c' \
-            --include='*.h' \
-            --include='*.dts' \
-            --include='*.dtsi' \
-            | head -n 300
+            2>/dev/null | head -n 500
+
+      - name: Search possible higher GPU frequencies
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "POSSIBLE HIGHER GPU FREQUENCIES"
+          echo "========================================"
+
+          grep -RniE \
+            "700|750|800|850|900|912|950|1000" \
+            drivers/gpu/arm/t8xx \
+            drivers/soc/samsung/pwrcal/S5E8890 \
+            arch/arm64/boot/dts \
+            2>/dev/null | head -n 500
+
+      - name: Check GPU driver variants
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "GPU EXYNOS8890 DRIVER VARIANTS"
+          echo "========================================"
+
+          find drivers/gpu/arm/t8xx \
+            -type f \
+            \( -name '*exynos8890*' -o -name '*gpu*' \) \
+            -print | sort
+
+      - name: Check source tree for frequency tables
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "ALL FREQUENCY TABLE CANDIDATES"
+          echo "========================================"
+
+          grep -RniE \
+            "freq_table|frequency_table|clock_table|dvfs_table" \
+            drivers/gpu/arm/t8xx/r15p0/platform/exynos \
+            drivers/soc/samsung/pwrcal/S5E8890 \
+            2>/dev/null | head -n 500
+
+      - name: Save important source files
+        working-directory: kernel
+        run: |
+          mkdir -p ../inspect-output
+
+          cp \
+            drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c \
+            ../inspect-output/gpu_exynos8890.c
+
+          cp \
+            drivers/soc/samsung/pwrcal/S5E8890/S5E8890-dfs.c \
+            ../inspect-output/S5E8890-dfs.c
+
+          cp \
+            drivers/soc/samsung/pwrcal/S5E8890/S5E8890-pll.c \
+            ../inspect-output/S5E8890-pll.c
+
+          cp \
+            arch/arm64/boot/dts/exynos8890.dtsi \
+            ../inspect-output/exynos8890.dtsi
+
+      - name: Upload inspection files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: G935L-GPU-DVFS-inspection
+          path: |
+            inspect-output/
+          if-no-files-found: warn
