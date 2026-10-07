@@ -32,6 +32,7 @@ jobs:
         run: |
           echo "Kernel source:"
           git log -1 --oneline
+
           echo
           echo "Available hero2lte defconfigs:"
           find . -iname '*hero2lte*defconfig' -print
@@ -41,13 +42,20 @@ jobs:
         run: |
           set -o pipefail
 
+          echo "=== Configure kernel ==="
+
           make ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             exynos8890-hero2lte_defconfig
+
+          echo
+          echo "=== Build kernel ==="
 
           make -j2 \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             2>&1 | tee ../build.log
 
       - name: Upload build logs
