@@ -1,1 +1,70 @@
+name: Build G935L Kernel
 
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git make bc bison flex \
+            build-essential gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabi \
+            libssl-dev libelf-dev \
+            python3 cpio rsync
+
+      - name: Clone kernel source
+        run: |
+          git clone --depth=1 \
+            https://github.com/8890q/android_kernel_samsung_universal8890.git \
+            kernel
+
+      - name: Check source
+        working-directory: kernel
+        run: |
+          echo "Kernel source:"
+          git log -1 --oneline
+          echo
+          echo "Available hero2lte defconfigs:"
+          find . -iname '*hero2lte*defconfig' -print
+
+      - name: Build kernel
+        working-directory: kernel
+        run: |
+          set -o pipefail
+
+          make ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            exynos8890-hero2lte_defconfig
+
+          make -j2 \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            2>&1 | tee ../build.log
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-build-logs
+          path: build.log
+          if-no-files-found: ignore
+
+      - name: Upload kernel output
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: G935L-kernel-output
+          path: |
+            kernel/arch/arm64/boot/Image
+            kernel/arch/arm64/boot/Image.gz
+            kernel/arch/arm64/boot/dts/**/*.dtb
+          if-no-files-found: warn
