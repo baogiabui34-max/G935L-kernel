@@ -1,669 +1,503 @@
-Run echo "========================================"
 ========================================
-=== S5E8890-dfs.c: CPU/GPU TABLE AREA ===
+GPU CLOCK CALLS
 ========================================
-	pscdc_trans(rate_sci, rate_smc, 3, 0, 0, 1, 1, mux_value, div_value, 1, 1);
-
-	pwrcal_mux_set_src(CLK(TOP_MUX_ACLK_CCORE_528), 0);
-	pwrcal_div_set_ratio(CLK(TOP_DIV_ACLK_CCORE_528), 3);
-	pwrcal_mux_set_src(CLK(TOP_MUX_ACLK_CCORE_264), 0);
-	pwrcal_div_set_ratio(CLK(TOP_DIV_ACLK_CCORE_264), 7);
-	pwrcal_mux_set_src(CLK(TOP_MUX_ACLK_CCORE_132), 0);
-	pwrcal_div_set_ratio(CLK(TOP_DIV_ACLK_CCORE_132), 15);
-	pwrcal_mux_set_src(CLK(TOP_MUX_PCLK_CCORE_66), 0);
-	pwrcal_div_set_ratio(CLK(TOP_DIV_PCLK_CCORE_66), 7);
-
-	pwrcal_mux_set_src(CLK(TOP_MUX_ACLK_PSCDC_400), 1);
-	pwrcal_div_set_ratio(CLK(TOP_DIV_ACLK_PSCDC_400), 1);
-	pwrcal_mux_set_src(CLK(TOP_MUX_CP2AP_MIF_CLK_USER), 0);
-
-	pwrcal_writel(MIF_MUX_DONE, 1);
-
-	pwrcal_writel(AP_FLAG, 0);
-}
-
-
-struct dfs_switch dfsbig_switches[] = {
-	{	1056000,	0,	0	},
-	{	528000,	0,	1	},
-	{	352000,	0,	2	},
-	{	264000,	0,	3	},
-	{	176000,	0,	5	},
-	{	96000,	0,	10	},
-};
-
-static struct dfs_table dfsbig_table = {
-	.switches = dfsbig_switches,
-	.num_of_switches = ARRAY_SIZE(dfsbig_switches),
-	.switch_mux = CLK(MNGS_MUX_MNGS),
-	.switch_use = 1,
-	.switch_notuse = 0,
-	.switch_src_mux = CLK(TOP_MUX_SCLK_BUS_PLL_MNGS),
-	.switch_src_div = CLK(TOP_DIV_SCLK_BUS_PLL_MNGS),
-	.switch_src_gate = CLK(TOP_GATE_SCLK_BUS_PLL_MNGS),
-	.switch_src_usermux = CLK(MNGS_MUX_BUS_PLL_MNGS_USER),
-};
-
-struct pwrcal_clk *dfsbig_dfsclkgrp[] = {
-	CLK(MNGS_PLL),
-	CLK(MNGS_DIV_MNGS),
-	CLK(MNGS_DIV_ACLK_MNGS),
-	CLK(MNGS_DIV_PCLK_MNGS),
-	CLK(MNGS_DIV_ATCLK_MNGS_CORE),
-	CLK(MNGS_DIV_PCLK_DBG_MNGS),
-	CLK(MNGS_DIV_CNTCLK_MNGS),
-	CLK(MNGS_DIV_MNGS_PLL),
-	CLK(MNGS_DIV_SCLK_PROMISE_MNGS),
-	CLK(MNGS_DIV_ATCLK_MNGS_SOC),
-	CLK(MNGS_DIV_ATCLK_MNGS_CSSYS_TRACECLK),
-	CLK(MNGS_DIV_ATCLK_MNGS_ASYNCATB_CAM1),
-	CLK(MNGS_DIV_ATCLK_MNGS_ASYNCATB_AUD),
-	CLK_NONE,
-};
-
-struct pwrcal_clk_set dfsbig_en_list[] = {
-	{CLK_NONE,	0,	-1},
-};
-
-struct dfs_switch dfslittle_switches[] = {
-	{	1056000,	0,	0	},
-	{	528000,	0,	1	},
-	{	352000,	0,	2	},
-	{	264000,	0,	3	},
-	{	176000,	0,	5	},
-	{	96000,	0,	10	},
-};
-
-static struct dfs_table dfslittle_table = {
-	.switches = dfslittle_switches,
-	.num_of_switches = ARRAY_SIZE(dfslittle_switches),
-	.switch_mux = CLK(APOLLO_MUX_APOLLO),
-	.switch_use = 1,
-	.switch_notuse = 0,
-	.switch_src_mux = CLK(TOP_MUX_SCLK_BUS_PLL_APOLLO),
-	.switch_src_div = CLK(TOP_DIV_SCLK_BUS_PLL_APOLLO),
-	.switch_src_gate = CLK(TOP_GATE_SCLK_BUS_PLL_APOLLO),
-	.switch_src_usermux = CLK(APOLLO_MUX_BUS_PLL_APOLLO_USER),
-};
-
-struct pwrcal_clk *dfslittle_dfsclkgrp[] = {
-	CLK(APOLLO_PLL),
-	CLK(APOLLO_DIV_ACLK_APOLLO),
-	CLK(APOLLO_DIV_PCLK_APOLLO),
-	CLK(APOLLO_DIV_ATCLK_APOLLO),
-	CLK(APOLLO_DIV_PCLK_DBG_APOLLO),
-	CLK(APOLLO_DIV_CNTCLK_APOLLO),
-	CLK(APOLLO_DIV_APOLLO_PLL),
-	CLK(APOLLO_DIV_SCLK_PROMISE_APOLLO),
-	CLK(APOLLO_DIV_APOLLO_RUN_MONITOR),
-	CLK_NONE
-};
-
-struct pwrcal_clk_set dfslittle_en_list[] = {
-	{CLK_NONE,	0,	-1},
-};
-
-struct dfs_switch dfsg3d_switches[] = {
-	{	528000,	0,	0	},
-	{	264000,	0,	1	},
-	{	176000,	0,	2	},
-	{	88000,	0,	5	},
-};
-
-static struct dfs_table dfsg3d_table = {
-	.switches = dfsg3d_switches,
-	.num_of_switches = ARRAY_SIZE(dfsg3d_switches),
-	.switch_mux = CLK(G3D_MUX_G3D),
-	.switch_use = 1,
-	.switch_notuse = 0,
-	.switch_src_mux = CLK(TOP_MUX_SCLK_BUS_PLL_G3D),
-	.switch_src_div = CLK(TOP_DIV_SCLK_BUS_PLL_G3D),
-	.switch_src_gate = CLK(TOP_GATE_SCLK_BUS_PLL_G3D),
-	.switch_src_usermux = CLK(G3D_MUX_BUS_PLL_USER),
-};
-
-struct pwrcal_clk *dfsg3d_dfsclkgrp[] = {
-	CLK(G3D_PLL),
-	CLK(G3D_DIV_ACLK_G3D),
-	CLK(G3D_DIV_PCLK_G3D),
-	CLK(G3D_DIV_SCLK_HPM_G3D),
-	CLK(G3D_DIV_SCLK_ATE_G3D),
-	CLK_NONE,
-};
-
-struct pwrcal_clk_set dfsg3d_en_list[] = {
-	{CLK_NONE,	0,	-1},
-};
-
-struct dfs_switch dfsg3dm_switches[] = {
-};
-
-static struct dfs_table dfsg3dm_table = {
-	.switches = dfsg3dm_switches,
-	.num_of_switches = ARRAY_SIZE(dfsg3dm_switches),
-};
-
-struct pwrcal_clk *dfsg3dm_dfsclkgrp[] = {
-	CLK_NONE,
-};
-
-struct pwrcal_clk_set dfsg3dm_en_list[] = {
-	{CLK_NONE,	0,	-1},
-};
-
-struct dfs_switch dfsmif_switches[] = {
-	{	468000,	4,	1	},
-};
-
-
-extern void dfsmif_trans_pre(unsigned int rate_from, unsigned int rate_to);
-extern void dfsmif_trans_post(unsigned int rate_from, unsigned int rate_to);
-extern void dfsmif_switch_pre(unsigned int rate_from, unsigned int rate_to);
-extern void dfsmif_switch_post(unsigned int rate_from, unsigned int rate_to);
-
-static struct dfs_table dfsmif_table = {
-	.switches = dfsmif_switches,
-
-========================================
-=== S5E8890 PLL SOURCE ===
-========================================
-#include "../pwrcal.h"
-#include "../pwrcal-clk.h"
-#include "../pwrcal-env.h"
-#include "../pwrcal-rae.h"
-#include "../pwrcal-pmu.h"
-#include "S5E8890-cmusfr.h"
-#include "S5E8890-pmusfr.h"
-#include "S5E8890-cmu.h"
-
-
-/*
-	PLLs
-*/
-/* PLL141XX Clock Type */
-#define PLL141XX_MDIV_SHIFT		16
-#define PLL141XX_PDIV_SHIFT		8
-#define PLL141XX_SDIV_SHIFT		0
-#define PLL141XX_MDIV_MASK		0x3FF
-#define PLL141XX_PDIV_MASK		0x3F
-#define PLL141XX_SDIV_MASK		0x7
-#define PLL141XX_ENABLE			31
-#define PLL141XX_LOCKED			29
-#define PLL141XX_BYPASS			22
-
-/* PLL1431X Clock Type */
-#define PLL1431X_MDIV_SHIFT		16
-#define PLL1431X_PDIV_SHIFT		8
-#define PLL1431X_SDIV_SHIFT		0
-#define PLL1431X_K_SHIFT		0
-#define PLL1431X_MDIV_MASK		0x3FF
-#define PLL1431X_PDIV_MASK		0x3F
-#define PLL1431X_SDIV_MASK		0x7
-#define PLL1431X_K_MASK		0xFFFF
-#define PLL1431X_ENABLE			31
-#define PLL1431X_LOCKED			29
-#define PLL1431X_BYPASS			4
-
-#define FIN_HZ_26M		(26*MHZ)
-
-static int mfc_pll_refcount[2] = {1, 1};
-
-static const struct pwrcal_pll_rate_table *_clk_get_pll_settings(
-					struct pwrcal_pll *pll_clk,
-					unsigned long long rate)
-{
-	int i;
-	const struct pwrcal_pll_rate_table  *prate_table = pll_clk->rate_table;
-
-	for (i = 0; i < pll_clk->rate_count; i++) {
-		if (rate == prate_table[i].rate)
-			return &prate_table[i];
-	}
-
-	return NULL;
-}
-
-static int _clk_pll141xx_find_pms(struct pll_spec *pll_spec,
-				struct pwrcal_pll_rate_table *rate_table,
-				unsigned long long rate)
-{
-	unsigned int p, m, s;
-	unsigned long long fref, fvco, fout;
-	unsigned long long tmprate, tmpfout;
-	unsigned long long mindiffrate = 0xFFFFFFFFFFFFFFFF;
-	unsigned int min_p, min_m, min_s, min_fout;
-
-	for (p = pll_spec->pdiv_min; p <= pll_spec->pdiv_max; p++) {
-		fref = FIN_HZ_26M / p;
-		if ((fref < pll_spec->fref_min) || (fref > pll_spec->fref_max))
-			continue;
-
-		for (s = pll_spec->sdiv_min; s <= pll_spec->sdiv_max; s++) {
-			tmprate = rate;
-			do_div(tmprate, KHZ);
-			tmprate = tmprate * p * (1 << s);
-			do_div(tmprate, (FIN_HZ_26M / KHZ));
-			m = (unsigned int)tmprate;
-
-			if ((m < pll_spec->mdiv_min)
-					|| (m > pll_spec->mdiv_max))
-				continue;
-
-			fvco = ((unsigned long long)FIN_HZ_26M) * m;
-			do_div(fvco, p);
-			if ((fvco < pll_spec->fvco_min)
-					|| (fvco > pll_spec->fvco_max))
-				continue;
-
-			fout = fvco >> s;
-			if ((fout >= pll_spec->fout_min)
-					&& (fout <= pll_spec->fout_max)) {
-				tmprate = rate;
-				do_div(tmprate, KHZ);
-				tmpfout = fout;
-				do_div(tmpfout, KHZ);
-				if (tmprate == tmpfout) {
-					rate_table->rate = fout;
-					rate_table->pdiv = p;
-					rate_table->mdiv = m;
-					rate_table->sdiv = s;
-					rate_table->kdiv = 0;
-					return 0;
-				}
-				if (tmpfout < tmprate && mindiffrate > tmprate - tmpfout) {
-					mindiffrate = tmprate - tmpfout;
-					min_fout = fout;
-					min_p = p;
-					min_m = m;
-					min_s = s;
-				}
-			}
-		}
-	}
-
-	if (mindiffrate != 0xFFFFFFFFFFFFFFFF) {
-		rate_table->rate = min_fout;
-		rate_table->pdiv = min_p;
-		rate_table->mdiv = min_m;
-		rate_table->sdiv = min_s;
-		rate_table->kdiv = 0;
-		return 0;
-	}
-	return -1;
-}
-
-
-static int _clk_pll1419x_find_pms(struct pll_spec *pll_spec,
-				struct pwrcal_pll_rate_table *rate_table,
-				unsigned long long rate)
-{
-	unsigned int p, m, s;
-	unsigned long long fref, fvco, fout;
-	unsigned long long tmprate, tmpfout;
-	unsigned long long mindiffrate = 0xFFFFFFFFFFFFFFFF;
-	unsigned int min_p, min_m, min_s, min_fout;
-
-	for (p = pll_spec->pdiv_min; p <= pll_spec->pdiv_max; p++) {
-		fref = FIN_HZ_26M / p;
-		if ((fref < pll_spec->fref_min) || (fref > pll_spec->fref_max))
-			continue;
-
-		for (s = pll_spec->sdiv_min; s <= pll_spec->sdiv_max; s++) {
-			/*tmprate = rate;*/
-			tmprate = rate/2; /*for PLL1419*/
-			do_div(tmprate, KHZ);
-			tmprate = tmprate * p * (1 << s);
-			do_div(tmprate, (FIN_HZ_26M / KHZ));
-			m = (unsigned int)tmprate;
-
-			if ((m < pll_spec->mdiv_min)
-					|| (m > pll_spec->mdiv_max))
-				continue;
-
-			fvco = ((unsigned long long)FIN_HZ_26M) * m;
-			do_div(fvco, p);
-			if ((fvco < pll_spec->fvco_min)
-					|| (fvco > pll_spec->fvco_max))
-				continue;
-
-			fout = fvco >> s;
-			tmpfout = 0;
-			if ((fout >= pll_spec->fout_min)
-					&& (fout <= pll_spec->fout_max)) {
-				tmprate = rate;
-				do_div(tmprate, KHZ);
-				tmpfout = fout;
-				do_div(tmpfout, KHZ);
-				if (tmprate == tmpfout) {
-					rate_table->rate = fout;
-					rate_table->pdiv = p;
-					rate_table->mdiv = m;
-					rate_table->sdiv = s;
-					rate_table->kdiv = 0;
-					return 0;
-				}
-			}
-			if (tmpfout && tmpfout < tmprate && mindiffrate > tmprate - tmpfout) {
-				mindiffrate = tmprate - tmpfout;
-				min_fout = fout;
-				min_p = p;
-				min_m = m;
-				min_s = s;
-			}
-		}
-	}
-
-	if (mindiffrate != 0xFFFFFFFFFFFFFFFF) {
-		rate_table->rate = min_fout;
-		rate_table->pdiv = min_p;
-		rate_table->mdiv = min_m;
-		rate_table->sdiv = min_s;
-		rate_table->kdiv = 0;
-		return 0;
-	}
-	return -1;
-}
-
-static int _clk_pll141xx_is_enabled(struct pwrcal_clk *clk)
-{
-	return (int)(pwrcal_getbit(clk->offset, PLL141XX_ENABLE));
-}
-
-static int _clk_pll141xx_enable(struct pwrcal_clk *clk)
-{
-	int timeout;
-
-	if (pwrcal_getbit(clk->offset, PLL141XX_ENABLE))
-		return 0;
-
-	pwrcal_setbit(clk->offset, PLL141XX_ENABLE, 1);
-
-	for (timeout = 0;; timeout++) {
-		if (pwrcal_getbit(clk->offset, PLL141XX_LOCKED))
-			break;
-		if (timeout > CLK_WAIT_CNT)
-			return -1;
-		cpu_relax();
-	}
-
-	return 0;
-}
-
-static int _clk_pll1419x_enable(struct pwrcal_clk *clk)
-{
-	int timeout;
-
-	if (pwrcal_getbit(clk->offset, PLL141XX_ENABLE))
-		return 0;
-
-	pwrcal_setbit(clk->offset, PLL141XX_ENABLE, 1);
-
-	for (timeout = 0;; timeout++) {
-		if (pwrcal_getbit(MIF0_PLL_CON0, PLL141XX_LOCKED))
-			break;
-		if (timeout > CLK_WAIT_CNT)
-			return -1;
-		cpu_relax();
-	}
-	for (timeout = 0;; timeout++) {
-		if (pwrcal_getbit(MIF1_PLL_CON0, PLL141XX_LOCKED))
-			break;
-		if (timeout > CLK_WAIT_CNT)
-			return -1;
-		cpu_relax();
-	}
-	for (timeout = 0;; timeout++) {
-		if (pwrcal_getbit(MIF2_PLL_CON0, PLL141XX_LOCKED))
-			break;
-		if (timeout > CLK_WAIT_CNT)
-			return -1;
-		cpu_relax();
-	}
-	for (timeout = 0;; timeout++) {
-		if (pwrcal_getbit(MIF3_PLL_CON0, PLL141XX_LOCKED))
-			break;
-		if (timeout > CLK_WAIT_CNT)
-			return -1;
-		cpu_relax();
-	}
-
-	return 0;
-}
-
-
-static int _clk_pll141xx_disable(struct pwrcal_clk *clk)
-{
-	pwrcal_setbit(clk->offset, PLL141XX_ENABLE, 0);
-
-	return 0;
-}
-
-int _clk_pll141xx_is_disabled_bypass(struct pwrcal_clk *clk)
-{
-	if (pwrcal_getbit(clk->offset + 1, PLL141XX_BYPASS))
-		return 0;
-
-	return 1;
-}
-
-
-int _clk_pll141xx_set_bypass(struct pwrcal_clk *clk, int bypass_disable)
-{
-	if (bypass_disable == 0)
-		pwrcal_setbit(clk + 1, PLL141XX_BYPASS, 1);
-	else
-		pwrcal_setbit(clk + 1, PLL141XX_BYPASS, 0);
-
-	return 0;
-}
-
-static int _clk_pll141xx_set_pms(struct pwrcal_clk *clk,
-				const struct pwrcal_pll_rate_table  *rate_table)
-{
-	unsigned int mdiv, pdiv, sdiv, pll_con0;
-
-	int timeout;
-
-	pdiv = rate_table->pdiv;
-	mdiv = rate_table->mdiv;
-	sdiv = rate_table->sdiv;
-
-	pll_con0 = pwrcal_readl(clk->offset);
-	pll_con0 &= ~((PLL141XX_MDIV_MASK << PLL141XX_MDIV_SHIFT)
-			| (PLL141XX_PDIV_MASK << PLL141XX_PDIV_SHIFT)
-			| (PLL141XX_SDIV_MASK << PLL141XX_SDIV_SHIFT));
-	pll_con0 |=  (mdiv << PLL141XX_MDIV_SHIFT)
-			| (pdiv << PLL141XX_PDIV_SHIFT)
-			| (sdiv << PLL141XX_SDIV_SHIFT);
-	pll_con0 &= ~(1<<26);
-	pll_con0 |= (1<<5);
-
-	pwrcal_writel(clk->status, pdiv*150);
-	pwrcal_writel(clk->offset, pll_con0);
-
-	if (pll_con0 & (1 << PLL141XX_ENABLE)) {
-		for (timeout = 0;; timeout++) {
-			if (pwrcal_getbit(clk->offset, PLL141XX_LOCKED))
-				break;
-			if (timeout > CLK_WAIT_CNT)
-				return -1;
-			cpu_relax();
-		}
-	}
-
-	return 0;
-
-}
-
-static int _clk_pll1419x_set_pms(struct pwrcal_clk *clk,
-				const struct pwrcal_pll_rate_table  *rate_table)
-{
-	unsigned int mdiv, pdiv, sdiv, pll_con0;
-
-	int timeout;
-
-	pdiv = rate_table->pdiv;
-	mdiv = rate_table->mdiv;
-	sdiv = rate_table->sdiv;
-
-	pll_con0 = pwrcal_readl(clk->offset);
-	pll_con0 &= ~((PLL141XX_MDIV_MASK << PLL141XX_MDIV_SHIFT)
-			| (PLL141XX_PDIV_MASK << PLL141XX_PDIV_SHIFT)
-			| (PLL141XX_SDIV_MASK << PLL141XX_SDIV_SHIFT));
-	pll_con0 |=  (mdiv << PLL141XX_MDIV_SHIFT)
-			| (pdiv << PLL141XX_PDIV_SHIFT)
-			| (sdiv << PLL141XX_SDIV_SHIFT);
-
-	pwrcal_writel(MIF0_PLL_LOCK, pdiv*150);
-	pwrcal_writel(MIF1_PLL_LOCK, pdiv*150);
-	pwrcal_writel(MIF2_PLL_LOCK, pdiv*150);
-	pwrcal_writel(MIF3_PLL_LOCK, pdiv*150);
-	pwrcal_writel(clk->offset, pll_con0);
-
-	if (pll_con0 & (1 << PLL141XX_ENABLE)) {
-		for (timeout = 0;; timeout++) {
-			if (pwrcal_getbit(MIF0_PLL_CON0, PLL141XX_LOCKED))
-				break;
-			if (timeout > CLK_WAIT_CNT)
-				return -1;
-			cpu_relax();
-		}
-		for (timeout = 0;; timeout++) {
-			if (pwrcal_getbit(MIF1_PLL_CON0, PLL141XX_LOCKED))
-				break;
-			if (timeout > CLK_WAIT_CNT)
-				return -1;
-			cpu_relax();
-		}
-		for (timeout = 0;; timeout++) {
-			if (pwrcal_getbit(MIF2_PLL_CON0, PLL141XX_LOCKED))
-				break;
-			if (timeout > CLK_WAIT_CNT)
-				return -1;
-			cpu_relax();
-		}
-		for (timeout = 0;; timeout++) {
-			if (pwrcal_getbit(MIF3_PLL_CON0, PLL141XX_LOCKED))
-				break;
-			if (timeout > CLK_WAIT_CNT)
-				return -1;
-			cpu_relax();
-		}
-	}
-
-	return 0;
-
-}
-
-
-static int _clk_pll141xx_set_rate(struct pwrcal_clk *clk,
-					unsigned long long rate)
-{
-	struct pwrcal_pll *pll = to_pll(clk);
-	struct pll_spec *pll_spec;
-	struct pwrcal_pll_rate_table  tmp_rate_table;
-	const struct pwrcal_pll_rate_table  *rate_table;
-
-	if (rate == 0) {
-		if (_clk_pll141xx_is_enabled(clk) != 0)
-			if (_clk_pll141xx_disable(clk))
-				goto errorout;
-		return 0;
-	}
-
-	rate_table = _clk_get_pll_settings(pll, rate);
-	if (rate_table == NULL) {
-		pll_spec = clk_pll_get_spec(clk);
-		if (pll_spec == NULL)
-			goto errorout;
-
-		if (_clk_pll141xx_find_pms(pll_spec, &tmp_rate_table, rate)) {
-			pr_err("can't find pms value for rate(%lldHz) of \'%s\'",
-				rate,
-				clk->name);
-			goto errorout;
-		}
-
-		rate_table = &tmp_rate_table;
-
-		pr_warn("not exist in rate table, p(%d), m(%d), s(%d), fout(%lldHz) %s",
-				rate_table->pdiv,
-				rate_table->mdiv,
-				rate_table->sdiv,
-				rate,
-				clk->name);
-	}
-
-	if (_clk_pll141xx_set_pms(clk, rate_table))
-		goto errorout;
-
-	if (rate != 0) {
-		if (_clk_pll141xx_is_enabled(clk) == 0)
-			_clk_pll141xx_enable(clk);
-	}
-	return 0;
-
-errorout:
-	return -1;
-}
-
-static int _clk_pll1419x_set_rate(struct pwrcal_clk *clk,
-					unsigned long long rate)
-{
-	struct pwrcal_pll *pll = to_pll(clk);
-	struct pll_spec *pll_spec;
-	struct pwrcal_pll_rate_table  tmp_rate_table;
-	const struct pwrcal_pll_rate_table  *rate_table;
-
-	if (rate == 0) {
-		if (_clk_pll141xx_is_enabled(clk) != 0)
-			if (_clk_pll141xx_disable(clk))
-				goto errorout;
-		return 0;
-	}
-
-	rate_table = _clk_get_pll_settings(pll, rate);
-	if (rate_table == NULL) {
-		pll_spec = clk_pll_get_spec(clk);
-		if (pll_spec == NULL)
-			goto errorout;
-
-		if (_clk_pll1419x_find_pms(pll_spec, &tmp_rate_table, rate)) {
-			pr_err("can't find pms value for rate(%lldHz) of \'%s\'",
-				rate,
-				clk->name);
-			goto errorout;
-		}
-
-		rate_table = &tmp_rate_table;
-
-		pr_warn("not exist in rate table, p(%d), m(%d), s(%d), fout(%lldHz) %s",
-				rate_table->pdiv,
-				rate_table->mdiv,
-				rate_table->sdiv,
-				rate,
-				clk->name);
-	}
-
-	_clk_pll141xx_disable(clk);
-
-	if (_clk_pll1419x_set_pms(clk, rate_table))
-		goto errorout;
-
-	if (rate != 0) {
-		if (_clk_pll141xx_is_enabled(clk) == 0)
-			_clk_pll1419x_enable(clk);
-	}
-	return 0;
-
-errorout:
-	return -1;
-}
-
-
-static unsigned long long _clk_pll141xx_get_rate(struct pwrcal_clk *clk)
-{
-	unsigned int mdiv, pdiv, sdiv, pll_con0;
-	unsigned long long fout;
-
-	if (_clk_pll141xx_is_enabled(clk) == 0)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos7890.c:78:	{GPU_MAX_CLOCK, 772},
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos7890.c:79:	{GPU_MAX_CLOCK_LIMIT, 700},
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos7890.c:159:	return gpu_get_attrib_data(gpu_config_attributes, GPU_MAX_CLOCK) * 1000;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos7890.c:437:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos7890.c:439:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos7890.c:498:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos7890.c:500:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos7890.c:511:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos7890.c:514:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:99:	if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock)) &&
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:103:		if ((!platform->hwcnt_bt_clk) && (platform->table[platform->step].clock > platform->gpu_max_clock_limit))
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:104:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:106:		if (platform->table[platform->step].clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:107:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:119:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:129:	if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:145:		if ((!platform->hwcnt_bt_clk) && (platform->table[platform->step].clock > platform->gpu_max_clock_limit))
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:146:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:148:		if (platform->table[platform->step].clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:149:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:165:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:181:			if (platform->step > gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:184:					|| (platform->step == gpu_dvfs_get_level(platform->gpu_max_clock)))
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:213:	dvfs_table_lock = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:220:	} else if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock)) &&
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:235:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:262:		platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:286:	cal_table_size = cal_dfs_get_rate_asv_table(dvfs_g3d, g3d_rate_volt);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_governor.c:302:	cal_table_size = cal_dfs_get_rate_asv_table(dvs_g3dm, g3d_m_rate_volt);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/mali_kbase_platform.h:103:	GPU_MAX_CLOCK = 0,
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/mali_kbase_platform.h:104:	GPU_MAX_CLOCK_LIMIT,
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/mali_kbase_platform.h:316:	int gpu_max_clock;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/mali_kbase_platform.h:317:	int gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:198:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:239:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:279:	for (i = gpu_dvfs_get_level(platform->gpu_min_clock); i >= gpu_dvfs_get_level(platform->gpu_max_clock); i--) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:545:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:550:		if (clock == platform->gpu_max_clock)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:614:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:619:		if (clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:620:			clock = platform->gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:642:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:765:	if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:770:	if (highspeed_clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:771:		highspeed_clock = platform->gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:1546:		ret += snprintf(buf+ret, PAGE_SIZE-ret, "%d", platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:1582:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:1587:		if (clock == platform->gpu_max_clock)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:1675:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:1680:		if (clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:1681:			clock = platform->gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:1751:	for (i = gpu_dvfs_get_level(platform->gpu_min_clock); i >= gpu_dvfs_get_level(platform->gpu_max_clock); i--) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_custom_interface.c:1925:	__ATTR(gpu_max_clock, S_IRUGO|S_IWUSR, show_kernel_sysfs_max_lock_dvfs, set_kernel_sysfs_max_lock_dvfs);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:102:	{GPU_MAX_CLOCK, 650},
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:103:	{GPU_MAX_CLOCK_LIMIT, 650},
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:192:	return gpu_get_attrib_data(gpu_config_attributes, GPU_MAX_CLOCK) * 1000;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:240:	return cal_dfs_get_rate(dvfs_g3d)/KHZ;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:314:	cal_dfs_set_rate(dvfs_g3d, g3d_rate);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:316:	platform->cur_clock = cal_dfs_get_rate(dvfs_g3d)/KHZ;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:319:		"[id: %x] clock set: %ld, clock get: %d\n", dvfs_g3d, g3d_rate/KHZ, platform->cur_clock);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:420:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:422:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:484:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:486:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:497:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:503:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:507:		if (cal_dfs_ext_ctrl(dvfs_g3d, cal_dfs_dvs, 1) != 0) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_exynos8890.c:527:	if (cal_dfs_ext_ctrl(dvfs_g3d, cal_dfs_dvs, 0) != 0) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_hwcnt_sec.c:256:			(platform->cur_clock >= platform->gpu_max_clock_limit)) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_utilization.c:155:		if (platform->cur_clock >= platform->gpu_max_clock_limit || platform->hwcnt_profile == true ) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_control.c:334:	if (platform->gpu_max_clock == 0) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_control.c:335:		platform->gpu_max_clock = (u32)cal_dfs_get_max_freq(dvfs_g3d) / 1000;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_control.c:336:		GPU_LOG(DVFS_INFO, DUMMY, 0u, 0u, "Board. Max clock limit %d.\n", platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_ipa.c:66:	max_step = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_ipa.c:70:	max_thermal_step = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_ipa.c:157:		for (level = gpu_dvfs_get_level(platform->gpu_max_clock); level <= gpu_dvfs_get_level(platform->gpu_min_clock); level++)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_ipa.c:189:	for (level = gpu_dvfs_get_level(platform->gpu_min_clock); level >= gpu_dvfs_get_level(platform->gpu_max_clock); level--) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_ipa.c:270:	return platform->gpu_max_clock;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/mali_kbase_platform.c:154:	data = gpu_get_attrib_data(attrib, GPU_MAX_CLOCK);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/mali_kbase_platform.c:155:	platform->gpu_max_clock = data == 0 ? 500 : (u32) data;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/mali_kbase_platform.c:156:	data = gpu_get_attrib_data(attrib, GPU_MAX_CLOCK_LIMIT);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/mali_kbase_platform.c:157:	platform->gpu_max_clock_limit = data == 0 ? 500 : (u32) data;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/mali_kbase_platform.c:350:	core_props->gpu_freq_khz_max = platform->gpu_max_clock * 1000;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:50:		cal_dfs_set_ema(dvfs_g3d, vol);				\
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:54:		cal_dfs_set_ema(dvfs_g3d, vol);				\
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:137:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:186:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:205:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:229:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:245:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:256:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:401:		platform->max_lock = platform->gpu_max_clock;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:529:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:552:	if ((level >= gpu_dvfs_get_level(platform->gpu_max_clock)) && (level <= gpu_dvfs_get_level(platform->gpu_min_clock)))
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:569:	if ((clock < platform->gpu_min_clock) || (clock > platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:589:	max = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:701:			table_size = cal_dfs_get_rate_asv_table(dvfs_mif, rate_volt);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:714:			table_size = cal_dfs_get_rate_asv_table(dvfs_int, rate_volt);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:727:			table_size = cal_dfs_get_rate_asv_table(dvfs_big, rate_volt);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:740:			table_size = cal_dfs_get_rate_asv_table(dvfs_little, rate_volt);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:1049:			if ((clock < platform->gpu_min_clock) || (clock > platform->gpu_max_clock)) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:1055:			if (clock > platform->gpu_max_clock)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:1056:				clock = platform->gpu_max_clock;
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:1068:			ret_val = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:1085:			if ((clock > platform->gpu_max_clock) || (clock < platform->gpu_min_clock)) {
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:1091:			if ((clock == platform->gpu_max_clock) || clock == 0)
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:1207:	table_size = cal_dfs_get_rate_asv_table(dvfs_mif, rate_volt);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:1214:	table_size = cal_dfs_get_rate_asv_table(dvfs_little, rate_volt);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:1221:	table_size = cal_dfs_get_rate_asv_table(dvfs_big, rate_volt);
+drivers/gpu/arm/t8xx/r15p0/platform/exynos/gpu_dvfs_api.c:1228:	table_size = cal_dfs_get_rate_asv_table(dvfs_int, rate_volt);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos7890.c:78:	{GPU_MAX_CLOCK, 772},
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos7890.c:79:	{GPU_MAX_CLOCK_LIMIT, 700},
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos7890.c:159:	return gpu_get_attrib_data(gpu_config_attributes, GPU_MAX_CLOCK) * 1000;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos7890.c:437:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos7890.c:439:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos7890.c:498:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos7890.c:500:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos7890.c:511:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos7890.c:514:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_hwcnt.c:206:			platform->cur_clock >= platform->gpu_max_clock_limit) {
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:99:	if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock)) &&
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:103:		if ((!platform->hwcnt_bt_clk) && (platform->table[platform->step].clock > platform->gpu_max_clock_limit))
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:104:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:106:		if (platform->table[platform->step].clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:107:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:119:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:129:	if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:145:		if ((!platform->hwcnt_bt_clk) && (platform->table[platform->step].clock > platform->gpu_max_clock_limit))
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:146:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:148:		if (platform->table[platform->step].clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:149:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:165:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:181:			if (platform->step > gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:184:					|| (platform->step == gpu_dvfs_get_level(platform->gpu_max_clock)))
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:213:	dvfs_table_lock = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:220:	} else if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock)) &&
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:235:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:281:	cal_table_size = cal_dfs_get_rate_asv_table(dvfs_g3d, g3d_rate_volt);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_governor.c:297:	cal_table_size = cal_dfs_get_rate_asv_table(dvs_g3dm, g3d_m_rate_volt);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/mali_kbase_platform.h:103:	GPU_MAX_CLOCK = 0,
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/mali_kbase_platform.h:104:	GPU_MAX_CLOCK_LIMIT,
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/mali_kbase_platform.h:318:	int gpu_max_clock;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/mali_kbase_platform.h:319:	int gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_custom_interface.c:194:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++) {
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_custom_interface.c:235:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_custom_interface.c:275:	for (i = gpu_dvfs_get_level(platform->gpu_min_clock); i >= gpu_dvfs_get_level(platform->gpu_max_clock); i--) {
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_custom_interface.c:541:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_custom_interface.c:546:		if (clock == platform->gpu_max_clock)
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_custom_interface.c:610:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_custom_interface.c:615:		if (clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_custom_interface.c:616:			clock = platform->gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_custom_interface.c:638:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_custom_interface.c:761:	if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_custom_interface.c:766:	if (highspeed_clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_custom_interface.c:767:		highspeed_clock = platform->gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:102:	{GPU_MAX_CLOCK, 650},
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:103:	{GPU_MAX_CLOCK_LIMIT, 650},
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:193:	return gpu_get_attrib_data(gpu_config_attributes, GPU_MAX_CLOCK) * 1000;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:241:	return cal_dfs_get_rate(dvfs_g3d)/KHZ;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:315:	cal_dfs_set_rate(dvfs_g3d, g3d_rate);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:317:	platform->cur_clock = cal_dfs_get_rate(dvfs_g3d)/KHZ;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:320:		"[id: %x] clock set: %ld, clock get: %d\n", dvfs_g3d, g3d_rate/KHZ, platform->cur_clock);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:421:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:423:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:485:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:487:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:498:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:504:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:508:		if (cal_dfs_ext_ctrl(dvfs_g3d, cal_dfs_dvs, 1) != 0) {
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_exynos8890.c:528:	if (cal_dfs_ext_ctrl(dvfs_g3d, cal_dfs_dvs, 0) != 0) {
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_hwcnt_sec.c:334:			(platform->cur_clock >= platform->gpu_max_clock_limit)) {
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_control.c:326:	if (platform->gpu_max_clock == 0) {
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_control.c:327:		platform->gpu_max_clock = (u32)cal_dfs_get_max_freq(dvfs_g3d) / 1000;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_control.c:328:		GPU_LOG(DVFS_INFO, DUMMY, 0u, 0u, "Board. Max clock limit %d.\n", platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_ipa.c:66:	max_step = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_ipa.c:70:	max_thermal_step = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_ipa.c:157:		for (level = gpu_dvfs_get_level(platform->gpu_max_clock); level <= gpu_dvfs_get_level(platform->gpu_min_clock); level++)
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_ipa.c:189:	for (level = gpu_dvfs_get_level(platform->gpu_min_clock); level >= gpu_dvfs_get_level(platform->gpu_max_clock); level--) {
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_ipa.c:270:	return platform->gpu_max_clock;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/mali_kbase_platform.c:151:	data = gpu_get_attrib_data(attrib, GPU_MAX_CLOCK);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/mali_kbase_platform.c:152:	platform->gpu_max_clock = data == 0 ? 500 : (u32) data;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/mali_kbase_platform.c:153:	data = gpu_get_attrib_data(attrib, GPU_MAX_CLOCK_LIMIT);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/mali_kbase_platform.c:154:	platform->gpu_max_clock_limit = data == 0 ? 500 : (u32) data;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/mali_kbase_platform.c:348:	core_props->gpu_freq_khz_max = platform->gpu_max_clock * 1000;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:50:		cal_dfs_set_ema(dvfs_g3d, vol);				\
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:54:		cal_dfs_set_ema(dvfs_g3d, vol);				\
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:137:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:186:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:206:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:230:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:246:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:257:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:402:		platform->max_lock = platform->gpu_max_clock;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:530:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:553:	if ((level >= gpu_dvfs_get_level(platform->gpu_max_clock)) && (level <= gpu_dvfs_get_level(platform->gpu_min_clock)))
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:570:	if ((clock < platform->gpu_min_clock) || (clock > platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:590:	max = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:704:			table_size = cal_dfs_get_rate_asv_table(dvfs_mif, rate_volt);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:717:			table_size = cal_dfs_get_rate_asv_table(dvfs_int, rate_volt);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:730:			table_size = cal_dfs_get_rate_asv_table(dvfs_big, rate_volt);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:743:			table_size = cal_dfs_get_rate_asv_table(dvfs_little, rate_volt);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:1054:			if ((clock < platform->gpu_min_clock) || (clock > platform->gpu_max_clock)) {
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:1060:			if (clock > platform->gpu_max_clock)
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:1061:				clock = platform->gpu_max_clock;
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:1073:			ret_val = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:1090:			if ((clock > platform->gpu_max_clock) || (clock < platform->gpu_min_clock)) {
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:1096:			if ((clock == platform->gpu_max_clock) || clock == 0)
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:1214:	table_size = cal_dfs_get_rate_asv_table(dvfs_mif, rate_volt);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:1221:	table_size = cal_dfs_get_rate_asv_table(dvfs_little, rate_volt);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:1228:	table_size = cal_dfs_get_rate_asv_table(dvfs_big, rate_volt);
+drivers/gpu/arm/t8xx/r7p0/platform/exynos/gpu_dvfs_api.c:1235:	table_size = cal_dfs_get_rate_asv_table(dvfs_int, rate_volt);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos7890.c:78:	{GPU_MAX_CLOCK, 772},
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos7890.c:79:	{GPU_MAX_CLOCK_LIMIT, 700},
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos7890.c:159:	return gpu_get_attrib_data(gpu_config_attributes, GPU_MAX_CLOCK) * 1000;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos7890.c:437:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos7890.c:439:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos7890.c:498:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos7890.c:500:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos7890.c:511:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos7890.c:514:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:99:	if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock)) &&
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:103:		if ((!platform->hwcnt_bt_clk) && (platform->table[platform->step].clock > platform->gpu_max_clock_limit))
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:104:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:106:		if (platform->table[platform->step].clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:107:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:119:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:129:	if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:146:		if ((!platform->hwcnt_bt_clk) && (platform->table[platform->step].clock > platform->gpu_max_clock_limit))
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:147:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:149:		if (platform->table[platform->step].clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:150:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:175:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:191:			if (platform->step > gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:194:					|| (platform->step == gpu_dvfs_get_level(platform->gpu_max_clock)))
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:223:	dvfs_table_lock = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:230:	} else if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock)) &&
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:245:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:272:		platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:296:	cal_table_size = cal_dfs_get_rate_asv_table(dvfs_g3d, g3d_rate_volt);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_governor.c:312:	cal_table_size = cal_dfs_get_rate_asv_table(dvs_g3dm, g3d_m_rate_volt);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/mali_kbase_platform.h:103:	GPU_MAX_CLOCK = 0,
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/mali_kbase_platform.h:104:	GPU_MAX_CLOCK_LIMIT,
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/mali_kbase_platform.h:316:	int gpu_max_clock;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/mali_kbase_platform.h:317:	int gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:209:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:250:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:290:	for (i = gpu_dvfs_get_level(platform->gpu_min_clock); i >= gpu_dvfs_get_level(platform->gpu_max_clock); i--) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:559:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:564:		if (clock == platform->gpu_max_clock)
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:631:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:636:		if (clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:637:			clock = platform->gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:659:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:782:	if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:787:	if (highspeed_clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:788:		highspeed_clock = platform->gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:1564:		ret += snprintf(buf+ret, PAGE_SIZE-ret, "%d", platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:1600:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:1605:		if (clock == platform->gpu_max_clock)
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:1693:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:1698:		if (clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:1699:			clock = platform->gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:1779:	for (i = gpu_dvfs_get_level(platform->gpu_min_clock); i >= gpu_dvfs_get_level(platform->gpu_max_clock); i--) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_custom_interface.c:1965:	__ATTR(gpu_max_clock, S_IRUGO|S_IWUSR, show_kernel_sysfs_max_lock_dvfs, set_kernel_sysfs_max_lock_dvfs);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:102:	{GPU_MAX_CLOCK, 650},
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:103:	{GPU_MAX_CLOCK_LIMIT, 650},
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:192:	return gpu_get_attrib_data(gpu_config_attributes, GPU_MAX_CLOCK) * 1000;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:246:	return cal_dfs_get_rate(dvfs_g3d)/KHZ;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:320:	cal_dfs_set_rate(dvfs_g3d, g3d_rate);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:322:	platform->cur_clock = cal_dfs_get_rate(dvfs_g3d)/KHZ;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:325:		"[id: %x] clock set: %ld, clock get: %d\n", dvfs_g3d, g3d_rate/KHZ, platform->cur_clock);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:427:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:429:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:492:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:494:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:507:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:516:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:521:		if (cal_dfs_ext_ctrl(dvfs_g3d, cal_dfs_dvs, 1) != 0) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_exynos8890.c:543:	if (cal_dfs_ext_ctrl(dvfs_g3d, cal_dfs_dvs, 0) != 0) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_hwcnt_sec.c:252:			(platform->cur_clock >= platform->gpu_max_clock_limit)) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_utilization.c:155:		if (platform->cur_clock >= platform->gpu_max_clock_limit || platform->hwcnt_profile == true) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_control.c:333:	if (platform->gpu_max_clock == 0) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_control.c:334:		platform->gpu_max_clock = (u32)cal_dfs_get_max_freq(dvfs_g3d) / 1000;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_control.c:335:		GPU_LOG(DVFS_INFO, DUMMY, 0u, 0u, "Board. Max clock limit %d.\n", platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_ipa.c:66:	max_step = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_ipa.c:70:	max_thermal_step = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_ipa.c:157:		for (level = gpu_dvfs_get_level(platform->gpu_max_clock); level <= gpu_dvfs_get_level(platform->gpu_min_clock); level++)
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_ipa.c:189:	for (level = gpu_dvfs_get_level(platform->gpu_min_clock); level >= gpu_dvfs_get_level(platform->gpu_max_clock); level--) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_ipa.c:270:	return platform->gpu_max_clock;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/mali_kbase_platform.c:170:	data = gpu_get_attrib_data(attrib, GPU_MAX_CLOCK);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/mali_kbase_platform.c:171:	platform->gpu_max_clock = data == 0 ? 500 : (u32) data;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/mali_kbase_platform.c:172:	data = gpu_get_attrib_data(attrib, GPU_MAX_CLOCK_LIMIT);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/mali_kbase_platform.c:173:	platform->gpu_max_clock_limit = data == 0 ? 500 : (u32) data;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/mali_kbase_platform.c:365:	core_props->gpu_freq_khz_max = platform->gpu_max_clock * 1000;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:50:		cal_dfs_set_ema(dvfs_g3d, vol);				\
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:54:		cal_dfs_set_ema(dvfs_g3d, vol);				\
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:137:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:195:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:214:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:238:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:262:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:273:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:418:		platform->max_lock = platform->gpu_max_clock;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:546:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:569:	if ((level >= gpu_dvfs_get_level(platform->gpu_max_clock)) && (level <= gpu_dvfs_get_level(platform->gpu_min_clock)))
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:586:	if ((clock < platform->gpu_min_clock) || (clock > platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:606:	max = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:718:			table_size = cal_dfs_get_rate_asv_table(dvfs_mif, rate_volt);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:731:			table_size = cal_dfs_get_rate_asv_table(dvfs_int, rate_volt);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:744:			table_size = cal_dfs_get_rate_asv_table(dvfs_big, rate_volt);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:757:			table_size = cal_dfs_get_rate_asv_table(dvfs_little, rate_volt);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:1066:			if ((clock < platform->gpu_min_clock) || (clock > platform->gpu_max_clock)) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:1072:			if (clock > platform->gpu_max_clock)
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:1073:				clock = platform->gpu_max_clock;
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:1085:			ret_val = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:1102:			if ((clock > platform->gpu_max_clock) || (clock < platform->gpu_min_clock)) {
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:1108:			if ((clock == platform->gpu_max_clock) || clock == 0)
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:1224:	table_size = cal_dfs_get_rate_asv_table(dvfs_mif, rate_volt);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:1231:	table_size = cal_dfs_get_rate_asv_table(dvfs_little, rate_volt);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:1238:	table_size = cal_dfs_get_rate_asv_table(dvfs_big, rate_volt);
+drivers/gpu/arm/t8xx/r28p0/platform/exynos/gpu_dvfs_api.c:1245:	table_size = cal_dfs_get_rate_asv_table(dvfs_int, rate_volt);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos7890.c:78:	{GPU_MAX_CLOCK, 772},
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos7890.c:79:	{GPU_MAX_CLOCK_LIMIT, 700},
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos7890.c:159:	return gpu_get_attrib_data(gpu_config_attributes, GPU_MAX_CLOCK) * 1000;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos7890.c:437:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos7890.c:439:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos7890.c:498:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos7890.c:500:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos7890.c:511:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos7890.c:514:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:99:	if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock)) &&
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:103:		if ((!platform->hwcnt_bt_clk) && (platform->table[platform->step].clock > platform->gpu_max_clock_limit))
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:104:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:106:		if (platform->table[platform->step].clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:107:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:119:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:129:	if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:145:		if ((!platform->hwcnt_bt_clk) && (platform->table[platform->step].clock > platform->gpu_max_clock_limit))
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:146:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:148:		if (platform->table[platform->step].clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:149:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:165:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:181:			if (platform->step > gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:184:					|| (platform->step == gpu_dvfs_get_level(platform->gpu_max_clock)))
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:213:	dvfs_table_lock = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:220:	} else if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock)) &&
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:235:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:262:		platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:286:	cal_table_size = cal_dfs_get_rate_asv_table(dvfs_g3d, g3d_rate_volt);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_governor.c:302:	cal_table_size = cal_dfs_get_rate_asv_table(dvs_g3dm, g3d_m_rate_volt);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/mali_kbase_platform.h:103:	GPU_MAX_CLOCK = 0,
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/mali_kbase_platform.h:104:	GPU_MAX_CLOCK_LIMIT,
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/mali_kbase_platform.h:316:	int gpu_max_clock;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/mali_kbase_platform.h:317:	int gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:209:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:250:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:290:	for (i = gpu_dvfs_get_level(platform->gpu_min_clock); i >= gpu_dvfs_get_level(platform->gpu_max_clock); i--) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:556:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:561:		if (clock == platform->gpu_max_clock)
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:625:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:630:		if (clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:631:			clock = platform->gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:653:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:776:	if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:781:	if (highspeed_clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:782:		highspeed_clock = platform->gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:1558:		ret += snprintf(buf+ret, PAGE_SIZE-ret, "%d", platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:1594:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:1599:		if (clock == platform->gpu_max_clock)
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:1687:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:1692:		if (clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:1693:			clock = platform->gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:1773:	for (i = gpu_dvfs_get_level(platform->gpu_min_clock); i >= gpu_dvfs_get_level(platform->gpu_max_clock); i--) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_custom_interface.c:1959:	__ATTR(gpu_max_clock, S_IRUGO|S_IWUSR, show_kernel_sysfs_max_lock_dvfs, set_kernel_sysfs_max_lock_dvfs);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:102:	{GPU_MAX_CLOCK, 650},
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:103:	{GPU_MAX_CLOCK_LIMIT, 650},
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:192:	return gpu_get_attrib_data(gpu_config_attributes, GPU_MAX_CLOCK) * 1000;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:246:	return cal_dfs_get_rate(dvfs_g3d)/KHZ;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:320:	cal_dfs_set_rate(dvfs_g3d, g3d_rate);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:322:	platform->cur_clock = cal_dfs_get_rate(dvfs_g3d)/KHZ;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:325:		"[id: %x] clock set: %ld, clock get: %d\n", dvfs_g3d, g3d_rate/KHZ, platform->cur_clock);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:427:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:429:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:492:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:494:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:507:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:516:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:521:		if (cal_dfs_ext_ctrl(dvfs_g3d, cal_dfs_dvs, 1) != 0) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_exynos8890.c:543:	if (cal_dfs_ext_ctrl(dvfs_g3d, cal_dfs_dvs, 0) != 0) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_hwcnt_sec.c:252:			(platform->cur_clock >= platform->gpu_max_clock_limit)) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_utilization.c:155:		if (platform->cur_clock >= platform->gpu_max_clock_limit || platform->hwcnt_profile == true) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_control.c:333:	if (platform->gpu_max_clock == 0) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_control.c:334:		platform->gpu_max_clock = (u32)cal_dfs_get_max_freq(dvfs_g3d) / 1000;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_control.c:335:		GPU_LOG(DVFS_INFO, DUMMY, 0u, 0u, "Board. Max clock limit %d.\n", platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_ipa.c:66:	max_step = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_ipa.c:70:	max_thermal_step = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_ipa.c:157:		for (level = gpu_dvfs_get_level(platform->gpu_max_clock); level <= gpu_dvfs_get_level(platform->gpu_min_clock); level++)
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_ipa.c:189:	for (level = gpu_dvfs_get_level(platform->gpu_min_clock); level >= gpu_dvfs_get_level(platform->gpu_max_clock); level--) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_ipa.c:270:	return platform->gpu_max_clock;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/mali_kbase_platform.c:170:	data = gpu_get_attrib_data(attrib, GPU_MAX_CLOCK);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/mali_kbase_platform.c:171:	platform->gpu_max_clock = data == 0 ? 500 : (u32) data;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/mali_kbase_platform.c:172:	data = gpu_get_attrib_data(attrib, GPU_MAX_CLOCK_LIMIT);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/mali_kbase_platform.c:173:	platform->gpu_max_clock_limit = data == 0 ? 500 : (u32) data;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/mali_kbase_platform.c:365:	core_props->gpu_freq_khz_max = platform->gpu_max_clock * 1000;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:50:		cal_dfs_set_ema(dvfs_g3d, vol);				\
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:54:		cal_dfs_set_ema(dvfs_g3d, vol);				\
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:137:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:195:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:214:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:238:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:262:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:273:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:418:		platform->max_lock = platform->gpu_max_clock;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:546:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:569:	if ((level >= gpu_dvfs_get_level(platform->gpu_max_clock)) && (level <= gpu_dvfs_get_level(platform->gpu_min_clock)))
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:586:	if ((clock < platform->gpu_min_clock) || (clock > platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:606:	max = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:718:			table_size = cal_dfs_get_rate_asv_table(dvfs_mif, rate_volt);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:731:			table_size = cal_dfs_get_rate_asv_table(dvfs_int, rate_volt);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:744:			table_size = cal_dfs_get_rate_asv_table(dvfs_big, rate_volt);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:757:			table_size = cal_dfs_get_rate_asv_table(dvfs_little, rate_volt);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:1066:			if ((clock < platform->gpu_min_clock) || (clock > platform->gpu_max_clock)) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:1072:			if (clock > platform->gpu_max_clock)
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:1073:				clock = platform->gpu_max_clock;
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:1085:			ret_val = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:1102:			if ((clock > platform->gpu_max_clock) || (clock < platform->gpu_min_clock)) {
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:1108:			if ((clock == platform->gpu_max_clock) || clock == 0)
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:1224:	table_size = cal_dfs_get_rate_asv_table(dvfs_mif, rate_volt);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:1231:	table_size = cal_dfs_get_rate_asv_table(dvfs_little, rate_volt);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:1238:	table_size = cal_dfs_get_rate_asv_table(dvfs_big, rate_volt);
+drivers/gpu/arm/t8xx/r22p0/platform/exynos/gpu_dvfs_api.c:1245:	table_size = cal_dfs_get_rate_asv_table(dvfs_int, rate_volt);
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos7890.c:78:	{GPU_MAX_CLOCK, 772},
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos7890.c:79:	{GPU_MAX_CLOCK_LIMIT, 700},
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos7890.c:159:	return gpu_get_attrib_data(gpu_config_attributes, GPU_MAX_CLOCK) * 1000;
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos7890.c:437:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos7890.c:439:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos7890.c:498:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos7890.c:500:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos7890.c:511:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos7890.c:514:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_hwcnt.c:206:			platform->cur_clock >= platform->gpu_max_clock_limit) {
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:99:	if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock)) &&
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:103:		if ((!platform->hwcnt_bt_clk) && (platform->table[platform->step].clock > platform->gpu_max_clock_limit))
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:104:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:106:		if (platform->table[platform->step].clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:107:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:119:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:129:	if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:145:		if ((!platform->hwcnt_bt_clk) && (platform->table[platform->step].clock > platform->gpu_max_clock_limit))
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:146:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:148:		if (platform->table[platform->step].clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:149:			platform->step = gpu_dvfs_get_level(platform->gpu_max_clock_limit);
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:165:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:181:			if (platform->step > gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:184:					|| (platform->step == gpu_dvfs_get_level(platform->gpu_max_clock)))
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:213:	dvfs_table_lock = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:220:	} else if ((platform->step > gpu_dvfs_get_level(platform->gpu_max_clock)) &&
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:235:	DVFS_ASSERT((platform->step >= gpu_dvfs_get_level(platform->gpu_max_clock))
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:281:	cal_table_size = cal_dfs_get_rate_asv_table(dvfs_g3d, g3d_rate_volt);
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_dvfs_governor.c:297:	cal_table_size = cal_dfs_get_rate_asv_table(dvs_g3dm, g3d_m_rate_volt);
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/mali_kbase_platform.h:103:	GPU_MAX_CLOCK = 0,
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/mali_kbase_platform.h:104:	GPU_MAX_CLOCK_LIMIT,
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/mali_kbase_platform.h:315:	int gpu_max_clock;
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/mali_kbase_platform.h:316:	int gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_custom_interface.c:194:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++) {
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_custom_interface.c:235:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_custom_interface.c:275:	for (i = gpu_dvfs_get_level(platform->gpu_min_clock); i >= gpu_dvfs_get_level(platform->gpu_max_clock); i--) {
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_custom_interface.c:541:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_custom_interface.c:546:		if (clock == platform->gpu_max_clock)
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_custom_interface.c:610:		if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_custom_interface.c:615:		if (clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_custom_interface.c:616:			clock = platform->gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_custom_interface.c:638:	for (i = gpu_dvfs_get_level(platform->gpu_max_clock); i <= gpu_dvfs_get_level(platform->gpu_min_clock); i++)
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_custom_interface.c:761:	if ((ret < gpu_dvfs_get_level(platform->gpu_max_clock)) || (ret > gpu_dvfs_get_level(platform->gpu_min_clock))) {
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_custom_interface.c:766:	if (highspeed_clock > platform->gpu_max_clock_limit)
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_custom_interface.c:767:		highspeed_clock = platform->gpu_max_clock_limit;
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:102:	{GPU_MAX_CLOCK, 650},
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:103:	{GPU_MAX_CLOCK_LIMIT, 650},
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:191:	return gpu_get_attrib_data(gpu_config_attributes, GPU_MAX_CLOCK) * 1000;
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:239:	return cal_dfs_get_rate(dvfs_g3d)/KHZ;
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:313:	cal_dfs_set_rate(dvfs_g3d, g3d_rate);
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:315:	platform->cur_clock = cal_dfs_get_rate(dvfs_g3d)/KHZ;
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:318:		"[id: %x] clock set: %ld, clock get: %d\n", dvfs_g3d, g3d_rate/KHZ, platform->cur_clock);
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:419:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:421:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:483:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:485:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:496:#ifdef CONFIG_EXYNOS_CL_DVFS_G3D
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:502:#endif /* CONFIG_EXYNOS_CL_DVFS_G3D */
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:506:		if (cal_dfs_ext_ctrl(dvfs_g3d, cal_dfs_dvs, 1) != 0) {
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_exynos8890.c:526:	if (cal_dfs_ext_ctrl(dvfs_g3d, cal_dfs_dvs, 0) != 0) {
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_hwcnt_sec.c:334:			(platform->cur_clock >= platform->gpu_max_clock_limit)) {
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_control.c:326:	if (platform->gpu_max_clock == 0) {
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_control.c:327:		platform->gpu_max_clock = (u32)cal_dfs_get_max_freq(dvfs_g3d) / 1000;
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_control.c:328:		GPU_LOG(DVFS_INFO, DUMMY, 0u, 0u, "Board. Max clock limit %d.\n", platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_ipa.c:66:	max_step = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_ipa.c:70:	max_thermal_step = gpu_dvfs_get_level(platform->gpu_max_clock);
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_ipa.c:157:		for (level = gpu_dvfs_get_level(platform->gpu_max_clock); level <= gpu_dvfs_get_level(platform->gpu_min_clock); level++)
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_ipa.c:189:	for (level = gpu_dvfs_get_level(platform->gpu_min_clock); level >= gpu_dvfs_get_level(platform->gpu_max_clock); level--) {
+drivers/gpu/arm/t8xx/r12p0_m/platform/exynos/gpu_ipa.c:270:	return platform->gpu_max_clock;
