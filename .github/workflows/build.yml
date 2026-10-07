@@ -1,4 +1,4 @@
-name: Inspect G935L Kernel DVFS
+name: Inspect G935L CPU DVFS Levels
 
 on:
   workflow_dispatch:
@@ -17,151 +17,139 @@ jobs:
             https://github.com/8890q/android_kernel_samsung_universal8890.git \
             kernel
 
-      - name: Locate DVFS tables and PLL definitions
+      - name: Find DVFS level definitions
         working-directory: kernel
         run: |
-          set -o pipefail
-
           echo "========================================"
-          echo "=== DFS TABLE DEFINITIONS ==="
+          echo "=== ECT DVFS STRUCTURES ==="
           echo "========================================"
 
           grep -RniE \
-            'dfsbig_table|dfslittle_table|dfsg3d_table|dfsg3dm_table' \
-            drivers/soc/samsung/pwrcal \
-            2>/dev/null || true
-
-          echo
-          echo "========================================"
-          echo "=== RATE TABLE CREATION ==="
-          echo "========================================"
-
-          grep -RniE \
-            'dfs_get_rate_table|rate_table.*=|=.*rate_table|set_rate_table|init.*rate.*table' \
-            drivers/soc/samsung/pwrcal \
+            'struct.*dvfs|list_level|main_frequencies|frequency|voltage' \
+            drivers/soc/samsung \
             drivers/cpufreq \
+            include \
             2>/dev/null \
-            | head -n 1000 || true
+            | grep -Ei 'ect|dvfs|8890|exynos' \
+            | head -n 2000 || true
 
           echo
           echo "========================================"
-          echo "=== FREQUENCY / VOLTAGE DATA ==="
+          echo "=== CL0 / LITTLE DVFS TABLE ==="
           echo "========================================"
 
           grep -RniE \
-            'freq_table|frequency_table|volt_table|voltage_table|volt.*table|freq.*table' \
-            drivers/soc/samsung/pwrcal/S5E8890 \
-            drivers/cpufreq \
+            'cl0_dvfs_table|CL_ZERO|dvfs_little|little' \
+            . \
+            --exclude-dir=.git \
             2>/dev/null \
             | head -n 1500 || true
 
           echo
           echo "========================================"
-          echo "=== MNGS PLL ==="
+          echo "=== CL1 / BIG DVFS TABLE ==="
           echo "========================================"
 
           grep -RniE \
-            'MNGS_PLL|mngs.*pll|pll.*mngs' \
-            drivers/soc/samsung/pwrcal/S5E8890 \
+            'cl1_dvfs_table|CL_ONE|dvfs_big|big' \
+            . \
+            --exclude-dir=.git \
             2>/dev/null \
-            | head -n 1000 || true
+            | head -n 1500 || true
 
           echo
           echo "========================================"
-          echo "=== APOLLO PLL ==="
+          echo "=== MAIN FREQUENCY / VOLTAGE ENTRIES ==="
           echo "========================================"
 
           grep -RniE \
-            'APOLLO_PLL|apollo.*pll|pll.*apollo' \
-            drivers/soc/samsung/pwrcal/S5E8890 \
+            'main_frequencies|frequency.*voltage|voltage.*frequency|freq.*volt' \
+            drivers/soc/samsung \
+            drivers/cpufreq \
             2>/dev/null \
-            | head -n 1000 || true
+            | head -n 2000 || true
 
-          echo
-          echo "========================================"
-          echo "=== G3D PLL ==="
-          echo "========================================"
-
-          grep -RniE \
-            'G3D_PLL|g3d.*pll|pll.*g3d' \
-            drivers/soc/samsung/pwrcal/S5E8890 \
-            2>/dev/null \
-            | head -n 1000 || true
-
-      - name: Inspect S5E8890 DFS source context
+      - name: Inspect ECT parser
         working-directory: kernel
         run: |
           echo "========================================"
-          echo "=== S5E8890-dfs.c: CPU/GPU TABLE AREA ==="
+          echo "=== ECT DVFS PARSER ==="
           echo "========================================"
 
-          sed -n '450,610p' \
-            drivers/soc/samsung/pwrcal/S5E8890/S5E8890-dfs.c
-
-          echo
-          echo "========================================"
-          echo "=== S5E8890 PLL SOURCE ==="
-          echo "========================================"
-
-          sed -n '1,500p' \
-            drivers/soc/samsung/pwrcal/S5E8890/S5E8890-pll.c \
+          find . -type f \
+            \( -iname '*ect*' -o -iname '*dvfs*' \) \
+            -print \
             | head -n 500
 
-      - name: Inspect CPU frequency calibration
+          echo
+          echo "=== ECT DOMAIN ACCESS ==="
+
+          grep -RniE \
+            'ect_dvfs_get_domain|ect_get_block|BLOCK_DVFS|list_level' \
+            drivers \
+            include \
+            2>/dev/null \
+            | head -n 2000 || true
+
+      - name: Inspect device tree CPU tables
         working-directory: kernel
         run: |
           echo "========================================"
-          echo "=== EXYNOS MP CPUFREQ CAL ==="
+          echo "=== DEVICE TREE DVFS TABLES ==="
           echo "========================================"
 
-          grep -nEi \
-            'CL_ZERO|CL_ONE|dfsbig|dfslittle|freq_table|volt_table|dfs_get|frequency|voltage|rate' \
-            drivers/cpufreq/exynos-mp-cpufreq-cal.c \
-            2>/dev/null \
-            | head -n 1500 || true
+          find arch/arm64/boot/dts -type f \
+            \( -iname '*8890*' -o -iname '*hero2lte*' -o -iname '*exynos*' \) \
+            -print \
+            | head -n 500
 
           echo
-          echo "========================================"
-          echo "=== CPUFREQ MAIN DRIVER ==="
-          echo "========================================"
+          echo "=== cl0_dvfs_table / cl1_dvfs_table ==="
 
-          grep -nEi \
-            'CL_ZERO|CL_ONE|dfsbig|dfslittle|freq_table|volt_table|frequency|voltage|rate' \
-            drivers/cpufreq/exynos-mp-cpufreq.c \
+          grep -RniE \
+            'cl0_dvfs_table|cl1_dvfs_table|cpufreq_dvfs_table' \
+            arch/arm64/boot/dts \
             2>/dev/null \
             | head -n 1500 || true
 
-      - name: Find all S5E8890 frequency constants
+      - name: Inspect actual S5E8890 DVFS domain registration
         working-directory: kernel
         run: |
           echo "========================================"
-          echo "=== POSSIBLE CPU/GPU FREQUENCY CONSTANTS ==="
+          echo "=== S5E8890 DVFS DOMAIN REGISTRATION ==="
           echo "========================================"
 
           grep -RniE \
-            '\b(1900000|2000000|2200000|2400000|2500000|2600000|2700000|2800000|800000|806000|850000|900000|912000)\b' \
+            'dvfs_big|dvfs_little|dvfs_g3d|dvfs_domain|list_level|num_of_lv' \
             drivers/soc/samsung/pwrcal/S5E8890 \
-            drivers/cpufreq \
-            drivers/gpu \
+            drivers/soc/samsung/pwrcal \
             2>/dev/null \
-            | head -n 1500 || true
+            | head -n 2500 || true
 
-      - name: Save inspection report
-        if: always()
+      - name: Inspect all likely clock levels
         working-directory: kernel
         run: |
-          {
-            echo "=== Git commit ==="
-            git log -1 --oneline
-            echo
-            echo "=== Source tree ==="
-            find drivers/soc/samsung/pwrcal/S5E8890 -maxdepth 1 -type f -print
-          } > ../inspection-summary.txt
+          echo "========================================"
+          echo "=== LIKELY CPU CLOCK LEVELS ==="
+          echo "========================================"
 
-      - name: Upload inspection report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: exynos8890-dvfs-inspection
-          path: inspection-summary.txt
-          if-no-files-found: ignore
+          grep -RniE \
+            '\b(800000|900000|1000000|1100000|1200000|1300000|1400000|1500000|1600000|1700000|1800000|1900000|2000000|2100000|2200000|2300000|2400000|2500000|2600000|2700000|2800000)\b' \
+            drivers/soc/samsung/pwrcal/S5E8890 \
+            drivers/cpufreq \
+            arch/arm64/boot/dts \
+            2>/dev/null \
+            | head -n 2500 || true
+
+          echo
+          echo "========================================"
+          echo "=== LIKELY GPU CLOCK LEVELS ==="
+          echo "========================================"
+
+          grep -RniE \
+            '\b(700000|750000|800000|806000|850000|900000|912000|950000|1000000)\b' \
+            drivers/soc/samsung/pwrcal/S5E8890 \
+            drivers/gpu \
+            arch/arm64/boot/dts \
+            2>/dev/null \
+            | head -n 2500 || true
