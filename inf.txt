@@ -1,2205 +1,669 @@
 Run echo "========================================"
 ========================================
-=== S5E8890 DFS CPU REFERENCES ===
+=== S5E8890-dfs.c: CPU/GPU TABLE AREA ===
 ========================================
-4:#include "../pwrcal-dfs.h"
-18:/* If MIF frequency is higher than 1600Mhz,
-19:   ACLK_CCORE_800 needs 936Mhz(from BUS3_PLL)
-21:#define BUS3_PLL_ENABLE_THRESHOLD	1600000
-22:#define MIF_SWITCH_FREQ_HIGH	936000
-23:#define MIF_SWITCH_FREQ_LOW	528000
-25:static unsigned int dfs_mif_resume_level = 9;
-26:unsigned int dfsmif_paraset;
-29:extern int set_big_volt;
-30:extern int set_lit_volt;
-31:extern int set_int_volt;
-32:extern int set_mif_volt;
-33:extern int set_g3d_volt;
-34:extern int set_disp_volt;
-35:extern int set_cam_volt;
-39:	int add_volt = 0;
-42:	case dvfs_big:
-43:		add_volt = set_big_volt;
-45:	case dvfs_little:
-46:		add_volt = set_lit_volt;
-49:		add_volt = set_g3d_volt;
-52:		add_volt = set_mif_volt;
-55:		add_volt = set_int_volt;
-58:		add_volt = set_disp_volt;
-61:		add_volt = set_cam_volt;
-64:		return add_volt;
-66:	return add_volt;
-69:static void pscdc_trans(unsigned int sci_rate,
-70:			unsigned int aclk_mif_rate,
-71:			unsigned int top_mux_bus_pll,
-72:			unsigned int top_div_bus_pll,
-73:			unsigned int mif_mux_mif_pll,
-74:			unsigned int mif_mux_bus_pll,
-75:			unsigned int mif_mux_aclk_mif_pll,
-90:	pwrcal_writel(PSCDC_CTRL1,	(sci_rate << 16) | aclk_mif_rate);
-91:	pwrcal_writel(PSCDC_SMC_FIFO_CLK_CON0,	0x80000000 | (top_mux_bus_pll << 12));
-92:	pwrcal_writel(PSCDC_SMC_FIFO_CLK_CON1,	0x80020000 | (mif_mux_mif_pll << 12));
-93:	pwrcal_writel(PSCDC_SMC_FIFO_CLK_CON2,	0x80030000 | (mif_mux_bus_pll << 12));
-94:	pwrcal_writel(PSCDC_SMC_FIFO_CLK_CON3,	0x80040000 | (mif_mux_aclk_mif_pll << 12));
-108:	while (pwrcal_readl(PSCDC_CTRL0) & 0xC0000000)cpu_relax();
-111:/* parent rate table of mux_aclk_ccore_800 */
-113:	unsigned int rate;
-119:static struct aclk_ccore_800_table *rate_table_aclk_ccore_800;
-122:static int pscdc_switch(unsigned int rate_from, unsigned int rate_switch, struct dfs_table *table)
-125:	unsigned int rate_sci, rate_smc;	/* unit size : MHZ */
-128:	unsigned int mif_pll_rate = 0;
-135:	lv_from = dfs_get_lv(rate_from, table);
-137:		pr_err("(%s) lv_from(%d) rate_from(%dKhz) is invalid\n", __func__, lv_from, rate_from);
-140:	lv_switch = dfs_get_lv(rate_switch, table) - 1;
-142:		pr_err("(%s) lv_switch(%d) rate_switch(%dKhz) is invalid\n", __func__, lv_switch, rate_switch);
-146:	mif_pll_rate = get_value(table, lv_from, 1);
-157:	vclk_enable(VCLK(p1_bus3_pll));
-159:	if (mif_pll_rate && table->switch_src_gate)
-162:	if (mif_pll_rate && table->switch_src_usermux)
-167:		table->trans_pre(rate_from, rate_switch);
-170:	STEP 1. MIF_PLL -> SWITCHING PLL
-179:	if (dfs_trans_div(lv_from, lv_switch, table, TRANS_HIGH))
-181:	if (dfs_trans_mux(lv_from, lv_switch, table, TRANS_DIFF))
-186:		table->switch_pre(rate_from, rate_switch);
-189:	rate_sci = rate_table_aclk_ccore_800[lv_switch].rate;
-190:	rate_smc = rate_switch / 2000;
-191:	mux_value = rate_table_aclk_ccore_800[lv_switch].mux;
-192:	div_value = rate_table_aclk_ccore_800[lv_switch].div;
-193:	mux_switch = (rate_switch >= 936000) ? 3 : 0;
-194:	if (mif_pll_rate)
-195:		pscdc_trans(rate_sci, rate_smc, mux_switch, 0, 1, 1, 1, mux_value, div_value, 1, 1);
-197:		pscdc_trans(rate_sci, rate_smc, mux_switch, 0, 0, 1, 1, mux_value, div_value, 1, 1);
-203:		table->switch_post(rate_from, rate_switch);
-206:	if (dfs_trans_div(lv_from, lv_switch, table, TRANS_LOW))
-209:	if (!mif_pll_rate)
-210:		vclk_disable(VCLK(p1_bus3_pll));
-212:	pwrcal_pll_disable(CLK(MIF_PLL));
-214:	if (rate_from > BUS3_PLL_ENABLE_THRESHOLD)
-215:		vclk_disable(VCLK(p1_bus3_pll));
-223:static int pscdc_trasition(unsigned int rate_switch, unsigned int rate_to, struct dfs_table *table)
-226:	unsigned int rate_sci, rate_smc;	/* unit size : MHZ */
-228:	unsigned int mif_pll_rate = 0;
-235:	lv_switch = dfs_get_lv(rate_switch, table) - 1;
-237:		pr_err("(%s) lv_switch(%d) rate_switch(%dKhz) is invalid\n", __func__, lv_switch, rate_switch);
-240:	lv_to = dfs_get_lv(rate_to, table);
-242:		pr_err("(%s) lv_to(%d) rate_to(%dKhz) is invalid\n", __func__, lv_to, rate_to);
-246:	if (rate_switch == MIF_SWITCH_FREQ_HIGH && !(get_value(table, lv_to, 1))) {
-251:	if (rate_to > BUS3_PLL_ENABLE_THRESHOLD)
-252:		vclk_enable(VCLK(p1_bus3_pll));
-254:	mif_pll_rate = get_value(table, lv_to, 1);
-255:	if (!mif_pll_rate)
-256:		vclk_enable(VCLK(p1_bus3_pll));
-258:	STEP 2. PLL transition
-260:	if (dfs_trans_pll(lv_switch, lv_to, table, TRANS_FORCE))
-264:	STEP 3. SWITCHING->MIF_PLL
-271:	if (dfs_trans_div(lv_switch, lv_to, table, TRANS_HIGH))
-273:	if (dfs_trans_mux(lv_switch, lv_to, table, TRANS_DIFF))
-278:		table->switch_pre(rate_switch, rate_to);
-281:	mux_value = rate_table_aclk_ccore_800[lv_to].mux;
-282:	div_value = rate_table_aclk_ccore_800[lv_to].div;
-283:	rate_sci = rate_table_aclk_ccore_800[lv_to].sci_ratio;
-284:	rate_smc = rate_table_aclk_ccore_800[lv_to].smc_ratio;
-285:	if (mif_pll_rate)
-286:		pscdc_trans(rate_sci, rate_smc, 0, 0, 1, 1, 0, mux_value, div_value, 1, 1);
-288:		pscdc_trans(rate_sci, rate_smc, 3, 0, 0, 1, 1, mux_value, div_value, 1, 1);
-294:		table->switch_post(rate_switch, rate_to);
-297:	if (dfs_trans_div(lv_switch, lv_to, table, TRANS_LOW))
-301:		table->trans_post(rate_switch, rate_to);
-308:	if (mif_pll_rate && table->switch_src_usermux)
-312:	if (mif_pll_rate && table->switch_src_gate)
-315:	vclk_disable(VCLK(p1_bus3_pll));
-323:static unsigned long dfs_mif_get_rate(struct dfs_table *table)
-327:	unsigned long long rate;
-329:	unsigned int aclk_mif_pll, sclk_bus_pll_mif;
-330:	unsigned int switch_freq = 0;
-334:		if (is_pll(clk)) {
-335:			rate = pwrcal_pll_get_rate(clk);
-336:			do_div(rate, 1000);
-337:			cur[m] = (unsigned int)rate;
-356:	aclk_mif_pll = pwrcal_getf(CLK_CON_MUX_ACLK_MIF0_PLL, 12, 0x1);
-358:	if (aclk_mif_pll == 1) {
-359:		sclk_bus_pll_mif = pwrcal_getf(CLK_CON_MUX_SCLK_BUS_PLL_MIF, 12, 0x7);
-361:		if (sclk_bus_pll_mif == 0)
-362:			switch_freq = MIF_SWITCH_FREQ_LOW;
-364:			switch_freq = MIF_SWITCH_FREQ_HIGH;
-366:		l = dfs_get_lv(switch_freq, table) - 1;
-368:			if (is_pll(table->members[m]))
-374:			return (unsigned long)switch_freq;
-380:			if (!is_pll(table->members[m]))
-392:		pr_err("dfs_get_rate mid : %s : %d\n", clk->name, cur[m]);
-399:void enable_cppll_sharing_bus012_disable(void)
-408:	pwrcal_gate_enable(CLK(TOP_GATE_SCLK_BUS_PLL_MIF));
-420:	pwrcal_pll_disable(CLK(BUS0_PLL));
-421:	pwrcal_pll_disable(CLK(BUS1_PLL));
-422:	pwrcal_pll_disable(CLK(BUS2_PLL));
-429:void disable_cppll_sharing_bus012_enable(void)
-433:	unsigned int rate_sci;
-434:	unsigned int rate_smc;
-440:	pwrcal_pll_enable(CLK(BUS0_PLL));
-441:	pwrcal_pll_enable(CLK(BUS1_PLL));
-442:	pwrcal_pll_enable(CLK(BUS2_PLL));
-444:	pwrcal_gate_enable(CLK(TOP_GATE_SCLK_BUS_PLL_MIF));
-446:	mux_value = rate_table_aclk_ccore_800[dfs_mif_resume_level].mux;
-447:	div_value = rate_table_aclk_ccore_800[dfs_mif_resume_level].div;
-448:	rate_sci = rate_table_aclk_ccore_800[dfs_mif_resume_level].sci_ratio;
-449:	rate_smc = rate_table_aclk_ccore_800[dfs_mif_resume_level].smc_ratio;
-450:	pscdc_trans(rate_sci, rate_smc, 3, 0, 0, 1, 1, mux_value, div_value, 1, 1);
-471:struct dfs_switch dfsbig_switches[] = {
-480:static struct dfs_table dfsbig_table = {
-481:	.switches = dfsbig_switches,
-482:	.num_of_switches = ARRAY_SIZE(dfsbig_switches),
-486:	.switch_src_mux = CLK(TOP_MUX_SCLK_BUS_PLL_MNGS),
-487:	.switch_src_div = CLK(TOP_DIV_SCLK_BUS_PLL_MNGS),
-488:	.switch_src_gate = CLK(TOP_GATE_SCLK_BUS_PLL_MNGS),
-489:	.switch_src_usermux = CLK(MNGS_MUX_BUS_PLL_MNGS_USER),
-492:struct pwrcal_clk *dfsbig_dfsclkgrp[] = {
-493:	CLK(MNGS_PLL),
-500:	CLK(MNGS_DIV_MNGS_PLL),
-509:struct pwrcal_clk_set dfsbig_en_list[] = {
-513:struct dfs_switch dfslittle_switches[] = {
-522:static struct dfs_table dfslittle_table = {
-523:	.switches = dfslittle_switches,
-524:	.num_of_switches = ARRAY_SIZE(dfslittle_switches),
-528:	.switch_src_mux = CLK(TOP_MUX_SCLK_BUS_PLL_APOLLO),
-529:	.switch_src_div = CLK(TOP_DIV_SCLK_BUS_PLL_APOLLO),
-530:	.switch_src_gate = CLK(TOP_GATE_SCLK_BUS_PLL_APOLLO),
-531:	.switch_src_usermux = CLK(APOLLO_MUX_BUS_PLL_APOLLO_USER),
-534:struct pwrcal_clk *dfslittle_dfsclkgrp[] = {
-535:	CLK(APOLLO_PLL),
-541:	CLK(APOLLO_DIV_APOLLO_PLL),
-547:struct pwrcal_clk_set dfslittle_en_list[] = {
-551:struct dfs_switch dfsg3d_switches[] = {
-558:static struct dfs_table dfsg3d_table = {
-559:	.switches = dfsg3d_switches,
-560:	.num_of_switches = ARRAY_SIZE(dfsg3d_switches),
-564:	.switch_src_mux = CLK(TOP_MUX_SCLK_BUS_PLL_G3D),
-565:	.switch_src_div = CLK(TOP_DIV_SCLK_BUS_PLL_G3D),
-566:	.switch_src_gate = CLK(TOP_GATE_SCLK_BUS_PLL_G3D),
-567:	.switch_src_usermux = CLK(G3D_MUX_BUS_PLL_USER),
-570:struct pwrcal_clk *dfsg3d_dfsclkgrp[] = {
-571:	CLK(G3D_PLL),
-579:struct pwrcal_clk_set dfsg3d_en_list[] = {
-583:struct dfs_switch dfsg3dm_switches[] = {
-586:static struct dfs_table dfsg3dm_table = {
-587:	.switches = dfsg3dm_switches,
-588:	.num_of_switches = ARRAY_SIZE(dfsg3dm_switches),
-591:struct pwrcal_clk *dfsg3dm_dfsclkgrp[] = {
-595:struct pwrcal_clk_set dfsg3dm_en_list[] = {
-599:struct dfs_switch dfsmif_switches[] = {
-604:extern void dfsmif_trans_pre(unsigned int rate_from, unsigned int rate_to);
-605:extern void dfsmif_trans_post(unsigned int rate_from, unsigned int rate_to);
-606:extern void dfsmif_switch_pre(unsigned int rate_from, unsigned int rate_to);
-607:extern void dfsmif_switch_post(unsigned int rate_from, unsigned int rate_to);
-609:static struct dfs_table dfsmif_table = {
-610:	.switches = dfsmif_switches,
-611:	.num_of_switches = ARRAY_SIZE(dfsmif_switches),
-615:	.switch_src_gate = CLK(TOP_GATE_SCLK_BUS_PLL_MIF),
-616:	.switch_src_usermux = CLK(TOP_MUX_BUS_PLL_MIF),
-619:	.trans_pre = dfsmif_trans_pre,
-620:	.trans_post = dfsmif_trans_post,
-621:	.switch_pre = dfsmif_switch_pre,
-622:	.switch_post = dfsmif_switch_post,
-623:	.private_getrate = dfs_mif_get_rate,
-626:struct pwrcal_clk *dfsmif_dfsclkgrp[] = {
-627:	CLK(MIF_PLL),
-659:struct pwrcal_clk_set dfsmif_en_list[] = {
-660:	{CLK(MIF0_MUX_BUS_PLL_USER),	1,	-1},
-661:	{CLK(MIF1_MUX_BUS_PLL_USER),	1,	-1},
-662:	{CLK(MIF2_MUX_BUS_PLL_USER),	1,	-1},
-663:	{CLK(MIF3_MUX_BUS_PLL_USER),	1,	-1},
-667:static struct dfs_table dfsint_table = {
-671:struct pwrcal_clk *dfsint_dfsclkgrp[] = {
-681:	CLK(TOP_MUX_ACLK_MSCL0_528),
-682:	CLK(TOP_MUX_ACLK_MSCL1_528),
-709:	CLK(TOP_DIV_ACLK_MSCL0_528),
-710:	CLK(TOP_DIV_ACLK_MSCL1_528),
-731:struct pwrcal_clk_set dfsint_en_list[] = {
-735:static struct dfs_table dfscam_table = {
-738:struct pwrcal_clk_set dfscam_en_list[] = {
-739:	{CLK(ISP_PLL),	425750,	0},
-743:struct pwrcal_clk *dfscam_dfsclkgrp[] = {
-758:	CLK(ISP_PLL),
-761:static struct dfs_table dfsdisp_table = {
-764:struct pwrcal_clk *dfsdisp_dfsclkgrp[] = {
-777:static int dfsbig_set_ema(unsigned int volt)
-779:	if (volt >= 1106000) {
-782:	} else if (volt >= 900000) {
-793:static int dfsbig_init_smpl(void)
-800:static int dfsbig_deinit_smpl(void)
-806:static int dfsbig_set_smpl(void)
-812:static int dfsbig_get_smpl(void)
-817:static int dfsbig_get_rate_table(unsigned long *table)
-819:	return dfs_get_rate_table(&dfsbig_table, table);
-822:static int dfsbig_asv_voltage_table(unsigned int *table)
-826:	for (i = 0; i < dfsbig_table.num_of_lv; i++)
-832:static struct vclk_dfs_ops dfsbig_dfsops = {
-833:	.set_ema = dfsbig_set_ema,
-834:	.init_smpl = dfsbig_init_smpl,
-835:	.deinit_smpl = dfsbig_deinit_smpl,
-836:	.set_smpl = dfsbig_set_smpl,
-837:	.get_smpl = dfsbig_get_smpl,
-838:	.get_rate_table = dfsbig_get_rate_table,
-839:	.get_asv_table = dfsbig_asv_voltage_table,
-844:static int dfslittle_set_ema(unsigned int volt)
-850:static int dfslittle_get_rate_table(unsigned long *table)
-852:	return dfs_get_rate_table(&dfslittle_table, table);
-855:static int dfslittle_asv_voltage_table(unsigned int *table)
-859:	for (i = 0; i < dfslittle_table.num_of_lv; i++)
-865:static int dfslittle_init_smpl(void)
-872:static int dfslittle_deinit_smpl(void)
-878:static int dfslittle_set_smpl(void)
-884:static int dfslittle_get_smpl(void)
-889:static struct vclk_dfs_ops dfslittle_dfsops = {
-890:	.set_ema = dfslittle_set_ema,
-891:	.init_smpl = dfslittle_init_smpl,
-892:	.deinit_smpl = dfslittle_deinit_smpl,
-893:	.set_smpl = dfslittle_set_smpl,
-894:	.get_smpl = dfslittle_get_smpl,
-895:	.get_rate_table = dfslittle_get_rate_table,
-896:	.get_asv_table = dfslittle_asv_voltage_table,
-900:static int dfsg3d_dvs(int command)
-910:			cpu_relax();
-918:			cpu_relax();
-932:static int dfsg3d_get_rate_table(unsigned long *table)
-934:	return dfs_get_rate_table(&dfsg3d_table, table);
-937:static int dfsg3d_asv_voltage_table(unsigned int *table)
-941:	for (i = 0; i < dfsg3d_table.num_of_lv; i++)
-947:static struct vclk_dfs_ops dfsg3d_dfsops = {
-948:	.dvs = dfsg3d_dvs,
-949:	.get_rate_table = dfsg3d_get_rate_table,
-950:	.get_asv_table = dfsg3d_asv_voltage_table,
-954:static int dfsg3dm_get_rate_table(unsigned long *table)
-956:	return dfs_get_rate_table(&dfsg3dm_table, table);
-959:static int dfsg3dm_asv_voltage_table(unsigned int *table)
-963:	for (i = 0; i < dfsg3dm_table.num_of_lv; i++)
-969:static struct vclk_dfs_ops dfsg3dm_dfsops = {
-970:	.get_rate_table = dfsg3dm_get_rate_table,
-971:	.get_asv_table = dfsg3dm_asv_voltage_table,
-975:static int dfsmif_set_ema(unsigned int volt)
-980:static int dfsmif_get_rate_table(unsigned long *table)
-982:	return dfs_get_rate_table(&dfsmif_table, table);
-985:static int dfsmif_is_dll_on(void)
-990:static int dfsmif_ctrl_clk_gate(unsigned int enable)
-997:extern void pwrcal_dmc_set_dvfs(unsigned long long target_mif_freq, unsigned int timing_set_idx);
-999:void dfsmif_trans_pre(unsigned int rate_from, unsigned int rate_to)
-1004:void dfsmif_trans_post(unsigned int rate_from, unsigned int rate_to)
-1009:void dfsmif_switch_pre(unsigned int rate_from, unsigned int rate_to)
-1011:	unsigned long long rate;
-1013:	dfsmif_paraset = (dfsmif_paraset + 1) % 2;
-1014:	rate = (unsigned long long)rate_to * 1000;
-1015:	pwrcal_dmc_set_dvfs(rate, dfsmif_paraset);
-1018:void dfsmif_switch_post(unsigned int rate_from, unsigned int rate_to)
-1022:static int dfsmif_asv_voltage_table(unsigned int *table)
-1026:	for (i = 0; i < dfsmif_table.num_of_lv; i++)
-1032:static struct vclk_dfs_ops dfsmif_dfsops = {
-1033:	.set_ema = dfsmif_set_ema,
-1034:	.get_rate_table = dfsmif_get_rate_table,
-1035:	.is_dll_on = dfsmif_is_dll_on,
-1036:	.get_asv_table = dfsmif_asv_voltage_table,
-1037:	.ctrl_clk_gate = dfsmif_ctrl_clk_gate,
-1041:static int dfsint_set_ema(unsigned int volt)
-1046:int dfsint_get_target_rate(char *member, unsigned long rate)
-1062:		{"ACLK_MSCL0_528",	TOP_MUX_ACLK_MSCL0_528,	TOP_DIV_ACLK_MSCL0_528},
-1063:		{"ACLK_MSCL1_528",	TOP_MUX_ACLK_MSCL1_528,	TOP_DIV_ACLK_MSCL1_528},
-1084:	unsigned long rates[32];
-1096:	max = dfs_get_rate_table(&dfsint_table, represent);
-1097:	if (max != dfs_get_target_rate_table(&dfsint_table, target_list[target].mux, target_list[target].div, rates))
-1101:		if (rates[i] >= rate)
-1108:static int dfsint_get_rate_table(unsigned long *table)
-1110:	return dfs_get_rate_table(&dfsint_table, table);
-1113:static int dfsint_asv_voltage_table(unsigned int *table)
-1117:	for (i = 0; i < dfsint_table.num_of_lv; i++)
-1123:static int dfsint_mfc_lock;
-1125:	(*(_table->rate_table + (_table->num_of_members * _level + _member)))
-1130:DEFINE_SPINLOCK(dfs_int_spinlock);
-1132:static int dfsint_rate_lock(unsigned int para)
-1135:	struct dfs_table *table;
-1136:	unsigned int vfreq;
-1141:	if (!dfsint_mfc_lock && para) {
-1142:		spin_lock_irqsave(&dfs_int_spinlock, flag);
-1143:		for (i = 0; i < dfsint_table.num_of_lv; i++) {
-1152:		dfsint_mfc_lock = para;
-1153:		spin_unlock_irqrestore(&dfs_int_spinlock, flag);
-1155:	} else if (dfsint_mfc_lock && !para) {
-1156:		spin_lock_irqsave(&dfs_int_spinlock, flag);
-1157:		for (i = 0; i < dfsint_table.num_of_lv; i++) {
-1161:		vfreq = vclk_dvfs_int.vclk.vfreq;
-1163:		for (i = 0; i < dfsint_table.num_of_lv; i++)
-1164:			if (vfreq == get_value(table, i, 0))
-1169:		dfsint_mfc_lock = para;
-1170:		spin_unlock_irqrestore(&dfs_int_spinlock, flag);
-1177:static struct vclk_dfs_ops dfsint_dfsops = {
-1178:	.set_ema = dfsint_set_ema,
-1179:	.get_target_rate = dfsint_get_target_rate,
-1180:	.get_rate_table = dfsint_get_rate_table,
-1181:	.get_asv_table = dfsint_asv_voltage_table,
-1183:	.rate_lock = dfsint_rate_lock,
-1186:static int dfscam_set_ema(unsigned int volt)
-1191:static int dfscam_get_rate_table(unsigned long *table)
-1193:	return dfs_get_rate_table(&dfscam_table, table);
-1196:static int dfscam_asv_voltage_table(unsigned int *table)
-1200:	for (i = 0; i < dfscam_table.num_of_lv; i++)
-1206:static struct vclk_dfs_ops dfscam_dfsops = {
-1207:	.set_ema = dfscam_set_ema,
-1208:	.get_rate_table = dfscam_get_rate_table,
-1209:	.get_asv_table = dfscam_asv_voltage_table,
-1213:static int dfsdisp_set_ema(unsigned int volt)
-1218:static int dfsdisp_get_rate_table(unsigned long *table)
-1220:	return dfs_get_rate_table(&dfsdisp_table, table);
-1223:static int dfsdisp_asv_voltage_table(unsigned int *table)
-1227:	for (i = 0; i < dfsdisp_table.num_of_lv; i++)
-1233:static struct vclk_dfs_ops dfsdisp_dfsops = {
-1234:	.set_ema = dfsdisp_set_ema,
-1235:	.get_rate_table = dfsdisp_get_rate_table,
-1236:	.get_asv_table = dfsdisp_asv_voltage_table,
-1240:static DEFINE_SPINLOCK(dvfs_big_lock);
-1241:static DEFINE_SPINLOCK(dvfs_little_lock);
-1249:DFS(dvfs_big) = {
-1250:	.vclk.type	= vclk_group_dfs,
-1253:	.vclk.vfreq	= 0,
-1254:	.vclk.name	= "dvfs_big",
-1255:	.vclk.ops	= &dfs_ops,
-1256:	.lock		= &dvfs_big_lock,
-1257:	.clks		= dfsbig_dfsclkgrp,
-1258:	.en_clks		= dfsbig_en_list,
-1259:	.table		= &dfsbig_table,
-1260:	.dfsops		= &dfsbig_dfsops,
-1263:DFS(dvfs_little) = {
-1264:	.vclk.type	= vclk_group_dfs,
-1267:	.vclk.vfreq	= 0,
-1268:	.vclk.name	= "dvfs_little",
-1269:	.vclk.ops	= &dfs_ops,
-1270:	.lock		= &dvfs_little_lock,
-1271:	.clks		= dfslittle_dfsclkgrp,
-1272:	.en_clks		= dfslittle_en_list,
-1273:	.table		= &dfslittle_table,
-1274:	.dfsops		= &dfslittle_dfsops,
-1277:DFS(dvfs_g3d) = {
-1278:	.vclk.type	= vclk_group_dfs,
-1281:	.vclk.vfreq	= 0,
-1283:	.vclk.ops	= &dfs_ops,
-1285:	.clks		= dfsg3d_dfsclkgrp,
-1286:	.en_clks		= dfsg3d_en_list,
-1287:	.table		= &dfsg3d_table,
-1288:	.dfsops		= &dfsg3d_dfsops,
-1291:DFS(dvfs_mif) = {
-1292:	.vclk.type	= vclk_group_dfs,
-1295:	.vclk.vfreq	= 0,
-1297:	.vclk.ops	= &dfs_ops,
-1299:	.clks		= dfsmif_dfsclkgrp,
-1300:	.en_clks		= dfsmif_en_list,
-1301:	.table		= &dfsmif_table,
-1302:	.dfsops		= &dfsmif_dfsops,
-1305:DFS(dvfs_int) = {
-1306:	.vclk.type	= vclk_group_dfs,
-1309:	.vclk.vfreq	= 0,
-1311:	.vclk.ops	= &dfs_ops,
-1313:	.clks		= dfsint_dfsclkgrp,
-1314:	.en_clks		= dfsint_en_list,
-1315:	.table		= &dfsint_table,
-1316:	.dfsops		= &dfsint_dfsops,
-1319:DFS(dvfs_cam) = {
-1320:	.vclk.type	= vclk_group_dfs,
-1323:	.vclk.vfreq	= 0,
-1325:	.vclk.ops	= &dfs_ops,
-1327:	.clks		= dfscam_dfsclkgrp,
-1328:	.en_clks		= dfscam_en_list,
-1329:	.table		= &dfscam_table,
-1330:	.dfsops		= &dfscam_dfsops,
-1333:DFS(dvfs_disp) = {
-1334:	.vclk.type	= vclk_group_dfs,
-1337:	.vclk.vfreq	= 0,
-1339:	.vclk.ops	= &dfs_ops,
-1341:	.clks		= dfsdisp_dfsclkgrp,
-1342:	.table		= &dfsdisp_table,
-1343:	.dfsops		= &dfsdisp_dfsops,
-1346:DFS(dvs_g3dm) = {
-1347:	.vclk.type	= vclk_group_dfs,
-1350:	.vclk.vfreq	= 0,
-1352:	.vclk.ops	= &dfs_ops,
-1354:	.clks		= dfsg3dm_dfsclkgrp,
-1355:	.en_clks		= dfsg3dm_en_list,
-1356:	.table		= &dfsg3dm_table,
-1357:	.dfsops		= &dfsg3dm_dfsops,
-1360:void dfs_set_clk_information(struct pwrcal_vclk_dfs *dfs)
-1365:	struct dfs_table *dvfs_table;
-1371:	dvfs_domain = ect_dvfs_get_domain(dvfs_block, dfs->vclk.name);
-1375:	dvfs_table = dfs->table;
-1378:	dvfs_table->max_freq = dvfs_domain->max_frequency;
-1379:	dvfs_table->min_freq = dvfs_domain->min_frequency;
-1381:	if (&vclk_dvfs_mif == dfs)
-1382:		dfs_mif_resume_level = dvfs_domain->resume_level_idx;
-1388:	dvfs_table->members[0] = REPRESENT_RATE;
-1395:	dvfs_table->rate_table = kzalloc(sizeof(unsigned int) * (dvfs_domain->num_of_clock + 1) * dvfs_domain->num_of_level, GFP_KERNEL);
-1396:	if (dvfs_table->rate_table == NULL)
-1401:		dvfs_table->rate_table[i * (dvfs_domain->num_of_clock + 1)] = dvfs_domain->list_level[i].level;
-1403:			dvfs_table->rate_table[i * (dvfs_domain->num_of_clock + 1) + j + 1] =
-1410:void dfs_set_pscdc_information(void)
-1424:	rate_table_aclk_ccore_800 = kzalloc(sizeof(struct aclk_ccore_800_table) * (pscdc->num_of_row), GFP_KERNEL);
-1425:	if (rate_table_aclk_ccore_800 == NULL)
-1429:		rate_table_aclk_ccore_800[i].rate = pscdc->parameter[i * pscdc->num_of_col + 0];
-1430:		rate_table_aclk_ccore_800[i].mux = pscdc->parameter[i * pscdc->num_of_col + 1];
-1431:		rate_table_aclk_ccore_800[i].div = pscdc->parameter[i * pscdc->num_of_col + 2];
-1432:		rate_table_aclk_ccore_800[i].sci_ratio = pscdc->parameter[i * pscdc->num_of_col + 3];
-1433:		rate_table_aclk_ccore_800[i].smc_ratio = pscdc->parameter[i * pscdc->num_of_col + 4];
-1437:void dfs_init(void)
-1439:	dfs_set_clk_information(&vclk_dvfs_big);
-1440:	dfs_set_clk_information(&vclk_dvfs_little);
-1441:	dfs_set_clk_information(&vclk_dvfs_g3d);
-1442:	dfs_set_clk_information(&vclk_dvfs_mif);
-1443:	dfs_set_clk_information(&vclk_dvfs_int);
-1444:	dfs_set_clk_information(&vclk_dvfs_cam);
-1445:	dfs_set_clk_information(&vclk_dvfs_disp);
-1446:	dfs_set_clk_information(&vclk_dvs_g3dm);
-1448:	dfs_dram_init();
-1449:	dfs_set_pscdc_information();
+	pscdc_trans(rate_sci, rate_smc, 3, 0, 0, 1, 1, mux_value, div_value, 1, 1);
+
+	pwrcal_mux_set_src(CLK(TOP_MUX_ACLK_CCORE_528), 0);
+	pwrcal_div_set_ratio(CLK(TOP_DIV_ACLK_CCORE_528), 3);
+	pwrcal_mux_set_src(CLK(TOP_MUX_ACLK_CCORE_264), 0);
+	pwrcal_div_set_ratio(CLK(TOP_DIV_ACLK_CCORE_264), 7);
+	pwrcal_mux_set_src(CLK(TOP_MUX_ACLK_CCORE_132), 0);
+	pwrcal_div_set_ratio(CLK(TOP_DIV_ACLK_CCORE_132), 15);
+	pwrcal_mux_set_src(CLK(TOP_MUX_PCLK_CCORE_66), 0);
+	pwrcal_div_set_ratio(CLK(TOP_DIV_PCLK_CCORE_66), 7);
+
+	pwrcal_mux_set_src(CLK(TOP_MUX_ACLK_PSCDC_400), 1);
+	pwrcal_div_set_ratio(CLK(TOP_DIV_ACLK_PSCDC_400), 1);
+	pwrcal_mux_set_src(CLK(TOP_MUX_CP2AP_MIF_CLK_USER), 0);
+
+	pwrcal_writel(MIF_MUX_DONE, 1);
+
+	pwrcal_writel(AP_FLAG, 0);
+}
+
+
+struct dfs_switch dfsbig_switches[] = {
+	{	1056000,	0,	0	},
+	{	528000,	0,	1	},
+	{	352000,	0,	2	},
+	{	264000,	0,	3	},
+	{	176000,	0,	5	},
+	{	96000,	0,	10	},
+};
+
+static struct dfs_table dfsbig_table = {
+	.switches = dfsbig_switches,
+	.num_of_switches = ARRAY_SIZE(dfsbig_switches),
+	.switch_mux = CLK(MNGS_MUX_MNGS),
+	.switch_use = 1,
+	.switch_notuse = 0,
+	.switch_src_mux = CLK(TOP_MUX_SCLK_BUS_PLL_MNGS),
+	.switch_src_div = CLK(TOP_DIV_SCLK_BUS_PLL_MNGS),
+	.switch_src_gate = CLK(TOP_GATE_SCLK_BUS_PLL_MNGS),
+	.switch_src_usermux = CLK(MNGS_MUX_BUS_PLL_MNGS_USER),
+};
+
+struct pwrcal_clk *dfsbig_dfsclkgrp[] = {
+	CLK(MNGS_PLL),
+	CLK(MNGS_DIV_MNGS),
+	CLK(MNGS_DIV_ACLK_MNGS),
+	CLK(MNGS_DIV_PCLK_MNGS),
+	CLK(MNGS_DIV_ATCLK_MNGS_CORE),
+	CLK(MNGS_DIV_PCLK_DBG_MNGS),
+	CLK(MNGS_DIV_CNTCLK_MNGS),
+	CLK(MNGS_DIV_MNGS_PLL),
+	CLK(MNGS_DIV_SCLK_PROMISE_MNGS),
+	CLK(MNGS_DIV_ATCLK_MNGS_SOC),
+	CLK(MNGS_DIV_ATCLK_MNGS_CSSYS_TRACECLK),
+	CLK(MNGS_DIV_ATCLK_MNGS_ASYNCATB_CAM1),
+	CLK(MNGS_DIV_ATCLK_MNGS_ASYNCATB_AUD),
+	CLK_NONE,
+};
+
+struct pwrcal_clk_set dfsbig_en_list[] = {
+	{CLK_NONE,	0,	-1},
+};
+
+struct dfs_switch dfslittle_switches[] = {
+	{	1056000,	0,	0	},
+	{	528000,	0,	1	},
+	{	352000,	0,	2	},
+	{	264000,	0,	3	},
+	{	176000,	0,	5	},
+	{	96000,	0,	10	},
+};
+
+static struct dfs_table dfslittle_table = {
+	.switches = dfslittle_switches,
+	.num_of_switches = ARRAY_SIZE(dfslittle_switches),
+	.switch_mux = CLK(APOLLO_MUX_APOLLO),
+	.switch_use = 1,
+	.switch_notuse = 0,
+	.switch_src_mux = CLK(TOP_MUX_SCLK_BUS_PLL_APOLLO),
+	.switch_src_div = CLK(TOP_DIV_SCLK_BUS_PLL_APOLLO),
+	.switch_src_gate = CLK(TOP_GATE_SCLK_BUS_PLL_APOLLO),
+	.switch_src_usermux = CLK(APOLLO_MUX_BUS_PLL_APOLLO_USER),
+};
+
+struct pwrcal_clk *dfslittle_dfsclkgrp[] = {
+	CLK(APOLLO_PLL),
+	CLK(APOLLO_DIV_ACLK_APOLLO),
+	CLK(APOLLO_DIV_PCLK_APOLLO),
+	CLK(APOLLO_DIV_ATCLK_APOLLO),
+	CLK(APOLLO_DIV_PCLK_DBG_APOLLO),
+	CLK(APOLLO_DIV_CNTCLK_APOLLO),
+	CLK(APOLLO_DIV_APOLLO_PLL),
+	CLK(APOLLO_DIV_SCLK_PROMISE_APOLLO),
+	CLK(APOLLO_DIV_APOLLO_RUN_MONITOR),
+	CLK_NONE
+};
+
+struct pwrcal_clk_set dfslittle_en_list[] = {
+	{CLK_NONE,	0,	-1},
+};
+
+struct dfs_switch dfsg3d_switches[] = {
+	{	528000,	0,	0	},
+	{	264000,	0,	1	},
+	{	176000,	0,	2	},
+	{	88000,	0,	5	},
+};
+
+static struct dfs_table dfsg3d_table = {
+	.switches = dfsg3d_switches,
+	.num_of_switches = ARRAY_SIZE(dfsg3d_switches),
+	.switch_mux = CLK(G3D_MUX_G3D),
+	.switch_use = 1,
+	.switch_notuse = 0,
+	.switch_src_mux = CLK(TOP_MUX_SCLK_BUS_PLL_G3D),
+	.switch_src_div = CLK(TOP_DIV_SCLK_BUS_PLL_G3D),
+	.switch_src_gate = CLK(TOP_GATE_SCLK_BUS_PLL_G3D),
+	.switch_src_usermux = CLK(G3D_MUX_BUS_PLL_USER),
+};
+
+struct pwrcal_clk *dfsg3d_dfsclkgrp[] = {
+	CLK(G3D_PLL),
+	CLK(G3D_DIV_ACLK_G3D),
+	CLK(G3D_DIV_PCLK_G3D),
+	CLK(G3D_DIV_SCLK_HPM_G3D),
+	CLK(G3D_DIV_SCLK_ATE_G3D),
+	CLK_NONE,
+};
+
+struct pwrcal_clk_set dfsg3d_en_list[] = {
+	{CLK_NONE,	0,	-1},
+};
+
+struct dfs_switch dfsg3dm_switches[] = {
+};
+
+static struct dfs_table dfsg3dm_table = {
+	.switches = dfsg3dm_switches,
+	.num_of_switches = ARRAY_SIZE(dfsg3dm_switches),
+};
+
+struct pwrcal_clk *dfsg3dm_dfsclkgrp[] = {
+	CLK_NONE,
+};
+
+struct pwrcal_clk_set dfsg3dm_en_list[] = {
+	{CLK_NONE,	0,	-1},
+};
+
+struct dfs_switch dfsmif_switches[] = {
+	{	468000,	4,	1	},
+};
+
+
+extern void dfsmif_trans_pre(unsigned int rate_from, unsigned int rate_to);
+extern void dfsmif_trans_post(unsigned int rate_from, unsigned int rate_to);
+extern void dfsmif_switch_pre(unsigned int rate_from, unsigned int rate_to);
+extern void dfsmif_switch_post(unsigned int rate_from, unsigned int rate_to);
+
+static struct dfs_table dfsmif_table = {
+	.switches = dfsmif_switches,
 
 ========================================
-=== EXYNOS CPUFREQ CALIBRATION ===
+=== S5E8890 PLL SOURCE ===
 ========================================
-5: * EXYNOS - MP CPU frequency scaling support for EXYNOS Big.Little series
-21:#include <linux/cpufreq.h>
-24:#include <soc/samsung/cpufreq.h>
-27:#include "../../drivers/soc/samsung/pwrcal/pwrcal.h"
-28:#include "../../drivers/soc/samsung/pwrcal/S5E8890/S5E8890-vclk.h"
-36:static unsigned int exynos_mp_cpufreq_cl0_get_freq(void)
-40:	freq = (unsigned int)cal_dfs_get_rate(dvfs_little);
-42:		pr_err("CL_ZERO: falied cal_dfs_get_rate(%dKHz)\n", freq);
-48:static unsigned int exynos_mp_cpufreq_cl1_get_freq(void)
-52:	freq = (unsigned int)cal_dfs_get_rate(dvfs_big);
-54:		pr_err("CL_ONE: falied cal_dfs_get_rate(%dKHz)\n", freq);
-59:static void exynos_mp_cpufreq_cl0_set_freq(unsigned int old_index,
-62:	if (cal_dfs_set_rate(dvfs_little,
-63:		(unsigned long)exynos_info[CL_ZERO]->freq_table[new_index].frequency) < 0)
-67:static void exynos_mp_cpufreq_cl0_set_ema(unsigned int volt)
-69:	if (cal_dfs_set_ema(dvfs_little, volt) < 0)
-73:static void exynos_mp_cpufreq_cl1_set_freq(unsigned int old_index,
-76:	if (cal_dfs_set_rate(dvfs_big,
-77:		(unsigned long)exynos_info[CL_ONE]->freq_table[new_index].frequency) < 0)
-81:static void exynos_mp_cpufreq_cl1_set_ema(unsigned int volt)
-83:	if (cal_dfs_set_ema(dvfs_big, volt) < 0)
-87:static int exynos_mp_cpufreq_init_smpl(void)
-91:	ret = cal_dfs_ext_ctrl(dvfs_big, cal_dfs_initsmpl, 0);
-100:static int exynos_mp_cpufreq_deinit_smpl(void)
-104:	ret = cal_dfs_ext_ctrl(dvfs_big, cal_dfs_deinitsmpl, 0);
-127:static int exynos_mp_cpufreq_check_smpl(void)
-131:	ret = cal_dfs_ext_ctrl(dvfs_big, cal_dfs_get_smplstatus, 0);
-151:static void exynos_mp_cpufreq_clear_smpl(void)
-153:	if (cal_dfs_ext_ctrl(dvfs_big, cal_dfs_setsmpl, 0) < 0)
-157:static void exynos_mp_cpufreq_set_cal_ops(cluster_type cluster)
-159:	/* set cal ops for little core */
-160:	if (!cluster) {
-161:		exynos_info[cluster]->set_freq = exynos_mp_cpufreq_cl0_set_freq;
-162:		exynos_info[cluster]->get_freq = exynos_mp_cpufreq_cl0_get_freq;
-164:		if (exynos_info[cluster]->en_ema)
-165:			exynos_info[cluster]->set_ema = exynos_mp_cpufreq_cl0_set_ema;
-167:			exynos_info[cluster]->set_ema = NULL;
-168:	/* set cal ops for big core */
-170:		exynos_info[cluster]->set_freq = exynos_mp_cpufreq_cl1_set_freq;
-171:		exynos_info[cluster]->get_freq = exynos_mp_cpufreq_cl1_get_freq;
-173:		if (exynos_info[cluster]->en_ema)
-174:			exynos_info[cluster]->set_ema = exynos_mp_cpufreq_cl1_set_ema;
-176:			exynos_info[cluster]->set_ema = NULL;
-178:		if (exynos_info[cluster]->en_smpl) {
-179:			exynos_info[cluster]->init_smpl = exynos_mp_cpufreq_init_smpl;
-180:			exynos_info[cluster]->deinit_smpl = exynos_mp_cpufreq_deinit_smpl;
-181:			exynos_info[cluster]->clear_smpl = exynos_mp_cpufreq_clear_smpl;
-182:			exynos_info[cluster]->check_smpl = exynos_mp_cpufreq_check_smpl;
-184:			exynos_info[cluster]->init_smpl = NULL;
-185:			exynos_info[cluster]->clear_smpl = NULL;
-186:			exynos_info[cluster]->check_smpl = NULL;
-191:static int exynos_mp_cpufreq_init_cal_table(cluster_type cluster)
-195:	struct exynos_dvfs_info *ptr = exynos_info[cluster];
-196:	unsigned int cal_max_freq;
-197:	unsigned int cal_max_support_idx = ptr->max_support_idx;
-199:	if (!ptr->freq_table || !ptr->volt_table) {
-204:	if (!cluster)
-209:	/* allocate to temporary memory for getting table from cal */
-213:	/* check freq_table with cal */
-214:	table_size = cal_dfs_get_rate_asv_table(cl_id, ptr_temp_table);
-217:		pr_err("%s: DT is not matched cal table size\n", __func__);
-222:	cal_max_freq = cal_dfs_get_max_freq(cl_id);
-223:	if (!cal_max_freq) {
-224:		pr_err("%s: failed get max frequency from PWRCAL\n", __func__);
-230:		if (ptr->freq_table[i].frequency != (unsigned int)ptr_temp_table[i].rate) {
-231:			pr_err("%s: DT is not matched cal frequency_table(dt : %d, cal : %d\n",
-232:					__func__, ptr->freq_table[i].frequency,
-237:			/* copy cal voltage to cpufreq driver voltage table */
-238:			ptr->volt_table[i] = ptr_temp_table[i].volt;
-241:		if (ptr_temp_table[i].rate == cal_max_freq)
-242:			cal_max_support_idx = i;
-245:	pr_info("CPUFREQ of %s CAL max_freq %lu KHz, DT max_freq %lu\n",
-246:			cluster ? "CL1" : "CL0",
-247:			ptr_temp_table[cal_max_support_idx].rate,
-250:	if (ptr->max_support_idx < cal_max_support_idx)
-251:		ptr->max_support_idx = cal_max_support_idx;
-253:	pr_info("CPUFREQ of %s Current max freq %lu KHz\n",
-254:				cluster ? "CL1" : "CL0",
-263:static void exynos_mp_cpufreq_print_info(cluster_type cluster)
-267:	pr_info("CPUFREQ of %s max_support_idx %d, min_support_idx %d\n",
-268:			cluster? "CL1" : "CL0",
-269:			exynos_info[cluster]->max_support_idx,
-270:			exynos_info[cluster]->min_support_idx);
-272:	pr_info("CPUFREQ of %s max_boot_qos %d, min_boot_qos %d\n",
-273:			cluster? "CL1" : "CL0",
-274:			exynos_info[cluster]->boot_cpu_max_qos,
-275:			exynos_info[cluster]->boot_cpu_min_qos);
-277:	for (i = 0; i < exynos_info[cluster]->max_idx_num; i ++) {
-278:		pr_info("CPUFREQ of %s : %2dL  %8d KHz  %7d uV (mif%8d KHz)\n",
-279:			cluster? "CL1" : "CL0",
-280:			exynos_info[cluster]->freq_table[i].driver_data,
-281:			exynos_info[cluster]->freq_table[i].frequency,
-282:			exynos_info[cluster]->volt_table[i],
-283:			exynos_info[cluster]->bus_table[i]);
-287:static int exynos_mp_cpufreq_cal_init(cluster_type cluster)
-291:	/* parsing cal rate, voltage table */
-292:	ret = exynos_mp_cpufreq_init_cal_table(cluster);
-294:		goto err_init_cal;
-297:	/* print cluster DT information */
-298:	exynos_mp_cpufreq_print_info(cluster);
-300:	/* set ops for cal */
-301:	exynos_mp_cpufreq_set_cal_ops(cluster);
-305:err_init_cal:
-306:	pr_err("%s: init_cal_table failed\n", __func__);
-310:int exynos_cpufreq_cluster1_init(struct exynos_dvfs_info * info)
-313:		exynos_info[CL_ONE] = info;
-315:		pr_err("%s: exynos_info[CL_ONE] is NULL\n", __func__);
-318:	if (exynos_mp_cpufreq_cal_init(CL_ONE)) {
-319:		pr_err("%s: CL_ONE: exynos_init failed\n", __func__);
-326:int exynos_cpufreq_cluster0_init(struct exynos_dvfs_info * info)
-329:		exynos_info[CL_ZERO] = info;
-331:		pr_err("%s: exynos_info[CL_ZERO] is NULL\n", __func__);
-334:	if (exynos_mp_cpufreq_cal_init(CL_ZERO)) {
-335:		pr_err("%s: CL_ZERO: exynos_init failed\n", __func__);
+#include "../pwrcal.h"
+#include "../pwrcal-clk.h"
+#include "../pwrcal-env.h"
+#include "../pwrcal-rae.h"
+#include "../pwrcal-pmu.h"
+#include "S5E8890-cmusfr.h"
+#include "S5E8890-pmusfr.h"
+#include "S5E8890-cmu.h"
 
-========================================
-=== CPUFREQ MAIN DRIVER ===
-========================================
-5: * EXYNOS - MP CPU frequency scaling support for EXYNOS Big.Little series
-23:#include <linux/cpufreq.h>
-28:#include <linux/cpu.h>
-32:#include <linux/cpumask.h>
-39:#include <asm/cputype.h>
-46:#include <soc/samsung/cpufreq.h>
-57:#define CLUSTER_ID(cl)		(cl ? ID_CL1 : ID_CL0)
-71:static unsigned int freq_min[CL_END] __read_mostly;	/* Minimum (Big/Little) clock frequency */
-72:static unsigned int freq_max[CL_END] __read_mostly;	/* Maximum (Big/Little) clock frequency */
-76:static struct cpufreq_freqs *freqs[CL_END];
-78:static DEFINE_MUTEX(cpufreq_lock);
-79:static DEFINE_MUTEX(cpufreq_scale_lock);
-81:bool exynos_cpufreq_init_done;
-87:static bool cluster1_hotplugged = false;
-94:/* Include CPU mask of each cluster */
-95:cluster_type exynos_boot_cluster;
-96:static cluster_type boot_cluster;
-97:static struct cpumask cluster_cpus[CL_END];
-99:DEFINE_PER_CPU(cluster_type, cpu_cur_cluster);
-116:static int qos_max_class[CL_END] = {PM_QOS_CLUSTER0_FREQ_MAX, PM_QOS_CLUSTER1_FREQ_MAX};
-117:static int qos_min_class[CL_END] = {PM_QOS_CLUSTER0_FREQ_MIN, PM_QOS_CLUSTER1_FREQ_MIN};
-118://static int qos_max_default_value[CL_END] = {PM_QOS_CLUSTER0_FREQ_MAX_DEFAULT_VALUE, PM_QOS_CLUSTER1_FREQ_MAX_DEFAULT_VALUE};
-119:static int qos_min_default_value[CL_END] = {PM_QOS_CLUSTER0_FREQ_MIN_DEFAULT_VALUE, PM_QOS_CLUSTER1_FREQ_MIN_DEFAULT_VALUE};
-121:/* For limit number of online cpus through cpuhotplug */
-122:struct pm_qos_request cpufreq_cpu_hotplug_max_request;
-125: * CPUFREQ init notifier
-127:static BLOCKING_NOTIFIER_HEAD(exynos_cpufreq_init_notifier_list);
-129:int exynos_cpufreq_init_register_notifier(struct notifier_block *nb)
-131:	return blocking_notifier_chain_register(&exynos_cpufreq_init_notifier_list, nb);
-133:EXPORT_SYMBOL(exynos_cpufreq_init_register_notifier);
-135:int exynos_cpufreq_init_unregister_notifier(struct notifier_block *nb)
-137:	return blocking_notifier_chain_unregister(&exynos_cpufreq_init_notifier_list, nb);
-139:EXPORT_SYMBOL(exynos_cpufreq_init_unregister_notifier);
-141:static int exynos_cpufreq_init_notify_call_chain(unsigned long val)
-143:	int ret = blocking_notifier_call_chain(&exynos_cpufreq_init_notifier_list, val, NULL);
-148:static BLOCKING_NOTIFIER_HEAD(exynos_cpufreq_smpl_warn_notifier_list);
-150:static int exynos_cpufreq_smpl_warn_register_notifier(struct notifier_block *nb)
-152:	return blocking_notifier_chain_register(&exynos_cpufreq_smpl_warn_notifier_list, nb);
-155:static int exynos_cpufreq_smpl_warn_unregister_notifier(struct notifier_block *nb)
-157:	return blocking_notifier_chain_unregister(&exynos_cpufreq_smpl_warn_notifier_list, nb);
-160:int exynos_cpufreq_smpl_warn_notify_call_chain(void)
-162:	int ret = blocking_notifier_call_chain(&exynos_cpufreq_smpl_warn_notifier_list, 0, NULL);
-165:EXPORT_SYMBOL(exynos_cpufreq_smpl_warn_notify_call_chain);
-167:static int exynos_cpufreq_smpl_warn_notifier_call(
-171:	if (!exynos_info[CL_ONE]->en_smpl)
-174:	if (exynos_info[CL_ONE]->clear_smpl)
-175:		exynos_info[CL_ONE]->clear_smpl();
-182:static struct notifier_block exynos_cpufreq_smpl_warn_notifier = {
-183:	.notifier_call = exynos_cpufreq_smpl_warn_notifier_call,
-188:static void exynos_cpufreq_print_max_freq(void)
-192:	pr_info("Boost Frequency\n");
-193:	for (i = 1; i <= NR_CLUST1_CPUS; i++) {
-194:		idx = exynos_info[CL_ONE]->max_support_idx_table[i];
-195:		pr_info("Number of onlince core: %d -> max frequency: %d\n",
-196:			i, exynos_info[CL_ONE]->freq_table[idx].frequency);
-201:static unsigned int exynos_cpufreq_get_possible_max_freq(int num_of_online)
-205:	if (num_of_online > NR_CLUST1_CPUS) {
-206:		pr_err("Input value is invalied! return possible max frequency\n");
-207:		idx = exynos_info[CL_ONE]->max_support_idx_table[NR_CLUST1_CPUS];
-209:		idx = exynos_info[CL_ONE]->max_support_idx_table[num_of_online];
-212:	return  exynos_info[CL_ONE]->freq_table[idx].frequency;
-215:static void exynos_cpufreq_verify_possible_freq(int *new_index)
-217:	unsigned int cpu;
-220:	for (cpu = nr_cpu_ids - 1; cpu >= NR_CLUST0_CPUS; cpu--)
-221:		if (!cpu_online(cpu) && !exynos_cpu.power_state(cpu))
-225:	if (*new_index >= exynos_info[CL_ONE]->max_support_idx_table[NR_CLUST1_CPUS - off_cnt])
-229:			freqs[CL_ONE]->old, freqs[CL_ONE]->new, off_cnt);
-233:	*new_index = exynos_info[CL_ONE]->max_support_idx_table[NR_CLUST1_CPUS - off_cnt];
-234:	freqs[CL_ONE]->new = exynos_info[CL_ONE]->freq_table[*new_index].frequency;
-254:static void init_cpumask_cluster_set(cluster_type cluster)
-257:	cluster_type set_cluster;
-259:	for_each_cpu(i, cpu_possible_mask) {
-260:		set_cluster = cluster;
-262:		if ((cluster == CL_ZERO) && (i >= NR_CLUST0_CPUS)) {
-263:			set_cluster = CL_ONE;
-264:		} else if ((cluster == CL_ONE) && (i >= NR_CLUST1_CPUS)) {
-265:			set_cluster = CL_ZERO;
-268:		cpumask_set_cpu(i, &cluster_cpus[set_cluster]);
-269:		per_cpu(cpu_cur_cluster, i) = set_cluster;
-274: * get_cur_cluster - return current cluster
-277: * standard of judging current cluster. If you make a decision
-280:static cluster_type get_cur_cluster(unsigned int cpu)
-282:	return per_cpu(cpu_cur_cluster, cpu);
-285:static unsigned int clk_get_freq(cluster_type cl)
-290:	else if (exynos_info[cl]->cpu_clk)
-291:		return clk_get_rate(exynos_info[cl]->cpu_clk);
-293:	pr_err("%s: clk_get_freq failed\n", cl? "CL_ONE" : "CL_ZERO");
-298:static void set_boot_freq(cluster_type cluster)
-301:	if (exynos_info[cluster]) {
-302:		exynos_info[cluster]->boot_freq
-303:				= clk_get_freq(cluster);
-304:		pr_info("Cluster[%d] BootFreq: %dKHz\n", cluster,
-305:						exynos_info[cluster]->boot_freq);
-311:static void set_resume_freq(cluster_type cluster)
-314:	if (exynos_info[cluster])
-315:		exynos_info[cluster]->resume_freq
-316:				= clk_get_freq(cluster);
-319:static unsigned int get_freq_volt(int cluster, unsigned int target_freq, int *idx)
-324:	struct cpufreq_frequency_table *table = exynos_info[cluster]->freq_table;
-326:	for (i = 0; (table[i].frequency != CPUFREQ_TABLE_END); i++) {
-327:		unsigned int freq = table[i].frequency;
-328:		if (freq == CPUFREQ_ENTRY_INVALID)
-337:	if (table[i].frequency == CPUFREQ_TABLE_END) {
-338:		if (exynos_info[cluster]->boot_freq_idx != -1 &&
-339:			target_freq == exynos_info[cluster]->boot_freq)
-340:			index = exynos_info[cluster]->boot_freq_idx;
-348:	return exynos_info[cluster]->volt_table[index];
-351:static unsigned int get_boot_freq(unsigned int cluster)
-353:	if (exynos_info[cluster] == NULL)
-356:	return exynos_info[cluster]->boot_freq;
-359:static unsigned int get_boot_volt(int cluster)
-361:	unsigned int boot_freq = get_boot_freq(cluster);
-363:	return get_freq_volt(cluster, boot_freq, NULL);
-366:static unsigned int get_resume_freq(unsigned int cluster)
-368:	if (exynos_info[cluster] == NULL) {
-372:	return exynos_info[cluster]->resume_freq;
-375:int exynos_verify_speed(struct cpufreq_policy *policy)
-377:	unsigned int cur = get_cur_cluster(policy->cpu);
-379:	return cpufreq_frequency_table_verify(policy,
-380:				exynos_info[cur]->freq_table);
-383:struct cpufreq_frequency_table *cpufreq_get_info_table(unsigned int cpu)
-385:	unsigned int cur = get_cur_cluster(cpu);
-386:	struct cpufreq_frequency_table *freq_table
-387:					= exynos_info[cur]->freq_table;
-389:	return freq_table;
-392:unsigned int exynos_getspeed_cluster(cluster_type cluster)
-394:	return clk_get_freq(cluster);
-397:unsigned int exynos_getspeed(unsigned int cpu)
-399:	unsigned int cur = get_cur_cluster(cpu);
-401:	if (check_cluster_idle_state(cpu))
-404:		return exynos_getspeed_cluster(cur);
-412:	struct cpufreq_frequency_table *freq_table
-413:					= exynos_info[cur]->freq_table;
-414:	unsigned int *volt_table = exynos_info[cur]->volt_table;
-423:			(freq_table[new_index].frequency < exynos_info[cur]->mpll_freq_khz) &&
-424:			(freq_table[old_index].frequency < exynos_info[cur]->mpll_freq_khz)) {
-425:				safe_arm_volt = volt_table[exynos_info[cur]->pll_safe_idx];
-432:/* Determine valid target frequency using freq_table */
-433:int exynos5_frequency_table_target(struct cpufreq_policy *policy,
-434:				   struct cpufreq_frequency_table *table,
-441:	if (!cpu_online(policy->cpu))
-444:	for (i = 0; (table[i].frequency != CPUFREQ_TABLE_END); i++) {
-445:		unsigned int freq = table[i].frequency;
-446:		if (freq == CPUFREQ_ENTRY_INVALID)
-455:	if (table[i].frequency == CPUFREQ_TABLE_END) {
-456:		unsigned int cur = get_cur_cluster(policy->cpu);
-470:								unsigned int cluster)
-472:	struct regulator *regulator = exynos_info[cluster]->regulator;
-473:	struct cpufreq_frequency_table *freq_table = exynos_info[cluster]->freq_table;
-477:	if (exynos_info[cluster]->abb_table)
-478:		set_abb_first_than_volt = is_set_abb_first(CLUSTER_ID(cluster),
-479:										freq_table[cur_index].frequency,
-480:										freq_table[new_index].frequency);
-487:		exynos_info[cluster]->cur_volt = volt;
-490:	if (exynos_info[cluster]->abb_table)
-491:		set_match_abb(CLUSTER_ID(cluster), exynos_info[cluster]->abb_table[new_index]);
-498:		exynos_info[cluster]->cur_volt = volt;
-505:static int exynos_cpufreq_scale(unsigned int target_freq, unsigned int cpu)
-507:	unsigned int cur = get_cur_cluster(cpu);
-508:	struct cpufreq_frequency_table *freq_table = exynos_info[cur]->freq_table;
-509:	unsigned int *volt_table = exynos_info[cur]->volt_table;
-510:	struct cpufreq_policy *policy = cpufreq_cpu_get(cpu);
-519:	freqs[cur]->cpu = cpu;
-522:	if (exynos5_frequency_table_target(policy, freq_table,
-523:				freqs[cur]->old, CPUFREQ_RELATION_L, &old_index)) {
-528:	if (exynos5_frequency_table_target(policy, freq_table,
-529:				freqs[cur]->new, CPUFREQ_RELATION_L, &new_index)) {
-539:	if (cur == CL_ONE &&
-540:		new_index < exynos_info[cur]->max_support_idx_table[NR_CLUST1_CPUS])
-541:		exynos_cpufreq_verify_possible_freq(&new_index);
-556:	volt = get_limit_voltage(volt_table[new_index]);
-558:	/* Update policy current frequency */
-559:	cpufreq_freq_transition_begin(policy, freqs[cur]);
-565:#ifdef CONFIG_EXYNOS_CL_DVFS_CPU
-567:		exynos_cl_dvfs_stop(CLUSTER_ID(cur), new_index);
-576:	/* When the new frequency is higher than current frequency */
-578:		/* Firstly, voltage up to increase frequency */
-605:	loops_per_jiffy = cpufreq_scale(global_lpj_ref.ref,
-610:	cpufreq_freq_transition_end(policy, freqs[cur], 0);
-612:	/* When the new frequency is lower than current frequency */
-614:		/* down the voltage after frequency change */
-620:			/* save current frequency as frequency is changed*/
-636:#ifdef CONFIG_EXYNOS_CL_DVFS_CPU
-638:		exynos_cl_dvfs_start(CLUSTER_ID(cur));
-641:	cpufreq_cpu_put(policy);
-646:	cpufreq_freq_transition_end(policy, freqs[cur], ret);
-652:	cpufreq_cpu_put(policy);
-657:void exynos_set_max_freq(int max_freq, unsigned int cpu)
-659:	cluster_type cluster = get_cur_cluster(cpu);
-661:	if (pm_qos_request_active(&ipa_max_qos[cluster]))
-662:		pm_qos_update_request(&ipa_max_qos[cluster], max_freq);
-664:		pm_qos_add_request(&ipa_max_qos[cluster], qos_max_class[cluster], max_freq);
-667:struct cpu_power_info {
-670:	cluster_type cluster;
-674:unsigned int get_power_value(struct cpu_power_info *power_info)
-684:	struct cpufreq_frequency_table *freq_table;
-685:	unsigned int *volt_table;
-687:	/* converting frequency unit as MHz */
-688:	cluster_type cluster = power_info->cluster;
-690:	if (cluster == CL_ONE || cluster == CL_ZERO) {
-691:		coeff = (cluster ? POWER_COEFF_15P : POWER_COEFF_7P);
-692:		freq_table = exynos_info[cluster]->freq_table;
-693:		volt_table = exynos_info[cluster]->volt_table;
-694:		maxfreq = exynos_info[cluster]->freq_table[exynos_info[cluster]->max_support_idx].frequency;
-699:	if (power_info->freq < freq_min[power_info->cluster]) {
-700:		pr_warn("%s: freq: %d for cluster: %d is less than min. freq: %d\n",
-701:			__func__, power_info->freq, power_info->cluster,
-702:			freq_min[power_info->cluster]);
-703:		power_info->freq = freq_min[power_info->cluster];
-707:		pr_warn("%s: freq: %d for cluster: %d is greater than max. freq: %d\n",
-708:			__func__, power_info->freq, power_info->cluster,
-713:	for (i = 0; (freq_table[i].frequency != CPUFREQ_TABLE_END); i++) {
-714:		if (power_info->freq == freq_table[i].frequency)
-718:	volt = volt_table[i] / 10000;
-723:	/* adding an extra 0 for division in order to compensate for the frequency unit change */
-742:int get_real_max_freq(cluster_type cluster)
-744:	return freq_max[cluster];
-751:static int exynos_enable_cpd(int cpu)
-758:static int exynos_disable_cpd(int cpu)
-762:	if (check_cluster_idle_state(cpu))
-763:		smp_call_function_single(cpu, exynos_qos_nop, NULL, 0);
-768:unsigned int g_clamp_cpufreqs[CL_END];
-770:static unsigned int exynos_verify_pm_qos_limit(struct cpufreq_policy *policy,
-771:		unsigned int target_freq, cluster_type cur)
-773:#if defined(CONFIG_CPU_FREQ_GOV_USERSPACE) || defined(CONFIG_CPU_FREQ_GOV_PERFORMANCE)
-780:	target_freq = min(g_clamp_cpufreqs[cur], target_freq); /* add IPA clamp */
-785:/* Set clock frequency */
-786:static int exynos_target(struct cpufreq_policy *policy,
-790:	cluster_type cur = get_cur_cluster(policy->cpu);
-791:	struct cpufreq_frequency_table *freq_table = exynos_info[cur]->freq_table;
-794:#ifdef CONFIG_CPU_THERMAL_IPA_DEBUG
-795:	trace_printk("IPA:%s:%d Called by %x, with target_freq %d", __PRETTY_FUNCTION__, __LINE__,
-799:	mutex_lock(&cpufreq_lock);
-810:	/* if PLL bypass, frequency scale is skip */
-811:	if (exynos_getspeed(policy->cpu) <= 24000)
-814:	/* verify old frequency */
-815:	if (freqs[cur]->old != exynos_getspeed(policy->cpu)) {
-816:		printk("oops, sombody change clock  old clk:%d, cur clk:%d \n", freqs[cur]->old, exynos_getspeed(policy->cpu));
-817:		BUG_ON(freqs[cur]->old != exynos_getspeed(policy->cpu));
-823:#ifdef CONFIG_CPU_THERMAL_IPA_DEBUG
-827:	if (cpufreq_frequency_table_target(policy, freq_table,
-833:	target_freq = freq_table[index].frequency;
-837:	/* disable cluster power down during scale */
-838:	if (cur == CL_ONE)
-839:		exynos_disable_cpd(policy->cpu);
-845:	/* frequency and volt scaling */
-846:	ret = exynos_cpufreq_scale(target_freq, policy->cpu);
-849:	/* enable cluster power down  */
-850:	if (cur == CL_ONE)
-851:		exynos_enable_cpd(policy->cpu);
-856:	/* save current frequency */
-861:	mutex_unlock(&cpufreq_lock);
-866:void ipa_set_clamp(int cpu, unsigned int clamp_freq, unsigned int gov_target)
-871:	unsigned int cur = get_cur_cluster(cpu);
-872:	struct cpufreq_policy *policy;
-874:	prev_clamp_freq = g_clamp_cpufreqs[cur];
-875:	g_clamp_cpufreqs[cur] = clamp_freq;
-877:	if (cur == CL_ONE)
-878:		gov_target = max((unsigned int)pm_qos_request(PM_QOS_CLUSTER1_FREQ_MIN), gov_target);
-880:		gov_target = max((unsigned int)pm_qos_request(PM_QOS_CLUSTER0_FREQ_MIN), gov_target);
-883:	freq = exynos_getspeed(cpu);
-888:	policy = cpufreq_cpu_get(cpu);
-894:		cpufreq_cpu_put(policy);
-897:#if defined(CONFIG_CPU_FREQ_GOV_USERSPACE) || defined(CONFIG_CPU_FREQ_GOV_PERFORMANCE)
-900:		cpufreq_cpu_put(policy);
-904:#ifdef CONFIG_CPU_THERMAL_IPA_DEBUG
-905:	trace_printk("IPA: %s:%d: set clamps for cpu %d to %d (curr was %d)",
-906:		     __PRETTY_FUNCTION__, __LINE__, cpu, clamp_freq, freq);
-909:	__cpufreq_driver_target(policy, new_freq, CPUFREQ_RELATION_H);
-910:	cpufreq_cpu_put(policy);
-914:static int exynos_cpufreq_suspend(struct cpufreq_policy *policy)
-919:static int exynos_cpufreq_resume(struct cpufreq_policy *policy)
-924:		freqs[cl]->old = exynos_getspeed_cluster(cl);
-926:	/* Update policy->cur value to resume frequency */
-927:	cur = get_cur_cluster(policy->cpu);
-928:	policy->cur = exynos_getspeed_cluster(cur);
-934:static int __cpuinit exynos_cpufreq_cpu_up_notifier(struct notifier_block *notifier,
-935:					unsigned long action, void *hcpu)
-937:	unsigned int cpu = (unsigned long)hcpu;
-939:	struct cpumask mask;
-940:	int cluster;
-942:	dev = get_cpu_device(cpu);
-945:		case CPU_ONLINE:
-946:			cluster = get_cur_cluster(cpu);
-947:			if (cluster == CL_ONE) {
-948:				cpumask_and(&mask, cpu_coregroup_mask(cpu), cpu_online_mask);
-949:				if (cpumask_weight(&mask) == 1)
-950:					pm_qos_update_request(&boot_max_qos[cluster], freq_max[cluster]);
-959:static int __cpuinit exynos_cpufreq_cpu_down_notifier(struct notifier_block *notifier,
-960:					unsigned long action, void *hcpu)
-962:	unsigned int cpu = (unsigned long)hcpu;
-964:	struct cpumask mask;
-965:	int cluster;
-970:	dev = get_cpu_device(cpu);
-973:		case CPU_DOWN_PREPARE:
-974:			cluster = get_cur_cluster(cpu);
-975:			if (cluster == CL_ONE) {
-976:				cpumask_and(&mask, cpu_coregroup_mask(cpu), cpu_online_mask);
-977:				if (cpumask_weight(&mask) == 1)
-978:					pm_qos_update_request(&boot_max_qos[cluster], freq_min[cluster]);
-981:		case CPU_DOWN_PREPARE_FROZEN:
-982:		case CPU_DOWN_LATE_PREPARE:
-983:			mutex_lock(&cpufreq_lock);
-984:			exynos_info[CL_ZERO]->blocked = true;
-985:			exynos_info[CL_ONE]->blocked = true;
-986:			mutex_unlock(&cpufreq_lock);
-988:		case CPU_DOWN_FAILED:
-989:		case CPU_DOWN_FAILED_FROZEN:
-990:		case CPU_DEAD:
-991:			mutex_lock(&cpufreq_lock);
-992:			exynos_info[CL_ZERO]->blocked = false;
-993:			exynos_info[CL_ONE]->blocked = false;
-994:			mutex_unlock(&cpufreq_lock);
-1001:static struct notifier_block __refdata exynos_cpufreq_cpu_up_nb = {
-1002:	.notifier_call = exynos_cpufreq_cpu_up_notifier,
-1008: * cpufreq_cpu_notifier performs.
-1010:static struct notifier_block __refdata exynos_cpufreq_cpu_down_nb = {
-1011:	.notifier_call = exynos_cpufreq_cpu_down_notifier,
-1016: * exynos_cpufreq_pm_notifier - block CPUFREQ's activities in suspend-resume
-1022: * While cpufreq_disable == true, target() ignores every frequency but
-1023: * boot_freq. The boot_freq value is the initial frequency,
-1026: * suspend and resume and block CPUFREQ activities. Note that the standard
-1030:static int exynos_cpufreq_pm_notifier(struct notifier_block *notifier,
-1033:	struct cpufreq_frequency_table *freq_table = NULL;
-1042:		/* Fix min/max freq to bootfreq for boot cluster */
-1043:		pm_qos_update_request(&boot_min_qos[CL_ZERO],
-1044:					exynos_info[CL_ZERO]->boot_freq);
-1045:		pm_qos_update_request(&boot_max_qos[CL_ZERO],
-1046:					exynos_info[CL_ZERO]->boot_freq);
-1048:		pm_qos_update_request(&boot_max_qos[CL_ONE], freq_min[CL_ONE]);
-1050:		mutex_lock(&cpufreq_lock);
-1051:		exynos_info[CL_ZERO]->blocked = true;
-1052:		exynos_info[CL_ONE]->blocked = true;
-1060:					(cl ? "CL_ONE" : "CL_ZERO"), get_boot_volt(cl),
-1067:				set_abb_first_than_volt = is_set_abb_first(CLUSTER_ID(cl), freqs[cl]->old, bootfreq);
-1068:#ifdef CONFIG_EXYNOS_CL_DVFS_CPU
-1069:			exynos_cl_dvfs_stop(CLUSTER_ID(cl), cl_index);
-1079:				freq_table = exynos_info[cl]->freq_table;
-1080:				for (i = 0; (freq_table[i].frequency != CPUFREQ_TABLE_END); i++) {
-1081:					if (freq_table[i].frequency == CPUFREQ_ENTRY_INVALID)
-1083:					if (freq_table[i].frequency == abb_freq) {
-1084:						set_match_abb(CLUSTER_ID(cl), exynos_info[cl]->abb_table[i]);
-1098:#ifdef CONFIG_EXYNOS_CL_DVFS_CPU
-1099:			exynos_cl_dvfs_start(CLUSTER_ID(cl));
-1105:		mutex_unlock(&cpufreq_lock);
-1107:		pr_debug("PM_SUSPEND_PREPARE for CPUFREQ\n");
-1111:		pr_debug("PM_POST_SUSPEND for CPUFREQ\n");
-1115:			mutex_lock(&cpufreq_lock);
-1117:			mutex_unlock(&cpufreq_lock);
-1120:		/* Recovery min/max frequency normally for boot cluster */
-1121:		pm_qos_update_request(&boot_min_qos[CL_ZERO], freq_min[CL_ZERO]);
-1122:		pm_qos_update_request(&boot_max_qos[CL_ZERO], freq_max[CL_ZERO]);
-1124:		pm_qos_update_request(&boot_max_qos[CL_ONE], INT_MAX);
-1137:static struct notifier_block exynos_cpufreq_nb = {
-1138:	.notifier_call = exynos_cpufreq_pm_notifier,
-1142:static int exynos_cpufreq_tmu_notifier(struct notifier_block *notifier,
-1148:#ifdef CONFIG_EXYNOS_CL_DVFS_CPU
-1156:	mutex_lock(&cpufreq_lock);
-1164:#ifdef CONFIG_EXYNOS_CL_DVFS_CPU
-1168:#ifdef CONFIG_EXYNOS_CL_DVFS_CPU
-1169:			exynos_cl_dvfs_stop(CLUSTER_ID(cl), cl_index);
-1192:#ifdef CONFIG_EXYNOS_CL_DVFS_CPU
-1193:			exynos_cl_dvfs_stop(CLUSTER_ID(cl), cl_index);
-1206:#ifdef CONFIG_EXYNOS_CL_DVFS_CPU
-1207:			exynos_cl_dvfs_start(CLUSTER_ID(cl));
-1213:	mutex_unlock(&cpufreq_lock);
-1219:	.notifier_call = exynos_cpufreq_tmu_notifier,
-1223:static int exynos_cpufreq_cpu_init(struct cpufreq_policy *policy)
-1225:	unsigned int cur = get_cur_cluster(policy->cpu);
-1227:	pr_debug("%s: cpu[%d]\n", __func__, policy->cpu);
-1229:	policy->cur = policy->min = policy->max = exynos_getspeed(policy->cpu);
-1231:	cpufreq_table_validate_and_show(policy, exynos_info[cur]->freq_table);
-1234:	policy->cpuinfo.transition_latency = 100000;
-1236:	if (cpumask_test_cpu(policy->cpu, &cluster_cpus[CL_ONE])) {
-1237:		cpumask_copy(policy->cpus, &cluster_cpus[CL_ONE]);
-1238:		cpumask_copy(policy->related_cpus, &cluster_cpus[CL_ONE]);
-1240:		cpumask_copy(policy->cpus, &cluster_cpus[CL_ZERO]);
-1241:		cpumask_copy(policy->related_cpus, &cluster_cpus[CL_ZERO]);
-1244:	return cpufreq_frequency_table_cpuinfo(policy, exynos_info[cur]->freq_table);
-1247:static struct cpufreq_driver exynos_driver = {
-1248:	.flags		= CPUFREQ_STICKY | CPUFREQ_HAVE_GOVERNOR_PER_POLICY,
-1252:	.init		= exynos_cpufreq_cpu_init,
-1253:	.name		= "exynos_cpufreq",
-1255:	.suspend	= exynos_cpufreq_suspend,
-1256:	.resume		= exynos_cpufreq_resume,
-1262:static ssize_t show_cpufreq_smpl_warn_ctrl(struct kobject *kobj,
-1266:	int cluster;
-1268:	for (cluster = 0; cluster < CL_END; cluster++)
-1269:		nsize += snprintf(&buf[nsize], 20, "cl[%d]:%d ", cluster, exynos_info[cluster]->en_smpl);
-1276:static ssize_t store_cpufreq_smpl_warn_ctrl(struct kobject *kobj, struct attribute *attr,
-1279:	int input, cluster;
-1281:	if (!sscanf(buf, "%1d %1d", &cluster, &input))
-1284:	if (!cluster) {
-1285:		pr_err("Do not support smpl_warn for little cluster.\n");
-1289:	if (exynos_info[cluster]->check_smpl()) {
-1294:	input ? exynos_info[cluster]->init_smpl() : exynos_info[cluster]->deinit_smpl();
-1295:	exynos_info[cluster]->en_smpl = !!input;
-1300:static ssize_t show_cpufreq_table(struct kobject *kobj,
-1306:	struct cpufreq_frequency_table *freq_table_cluster1 = exynos_info[CL_ONE]->freq_table;
-1307:	struct cpufreq_frequency_table *freq_table_cluster0 = exynos_info[CL_ZERO]->freq_table;
-1309:	for (i = 0; freq_table_cluster1[i].frequency != CPUFREQ_TABLE_END; i++)
-1311:	for (i = 0; freq_table_cluster0[i].frequency != CPUFREQ_TABLE_END; i++)
-1319:	for (i = 0; freq_table_cluster1[i].frequency != CPUFREQ_TABLE_END; i++) {
-1320:		if (freq_table_cluster1[i].frequency != CPUFREQ_ENTRY_INVALID)
-1322:						freq_table_cluster1[i].frequency);
-1325:	for (i = 0; freq_table_cluster0[i].frequency != CPUFREQ_TABLE_END; i++) {
-1326:		if (freq_table_cluster0[i].frequency != CPUFREQ_ENTRY_INVALID)
-1328:					freq_table_cluster0[i].frequency / LIMIT_FREQ_DIVIDER);
-1336:static ssize_t show_cpufreq_min_limit(struct kobject *kobj,
-1340:	unsigned int cluster1_qos_min = pm_qos_request(qos_min_class[CL_ONE]);
-1341:	unsigned int cluster0_qos_min = pm_qos_request(qos_min_class[CL_ZERO]);
-1344:	if (cluster1_qos_min > 0 && get_hmp_boost())
-1346:	if (cluster1_qos_min > 0)
-1349:		if (cluster1_qos_min > freq_max[CL_ONE])
-1350:			cluster1_qos_min = freq_max[CL_ONE];
-1351:		else if (cluster1_qos_min < freq_min[CL_ONE])
-1352:			cluster1_qos_min = freq_min[CL_ONE];
-1353:		nsize = snprintf(buf, 10, "%u\n", cluster1_qos_min);
-1354:	} else if (cluster0_qos_min > 0) {
-1355:		if (cluster0_qos_min > freq_max[CL_ZERO])
-1356:			cluster0_qos_min = freq_max[CL_ZERO];
-1357:		if (cluster0_qos_min < freq_min[CL_ZERO])
-1358:			cluster0_qos_min = freq_min[CL_ZERO];
-1359:		nsize = snprintf(buf, 10, "%u\n", cluster0_qos_min / LIMIT_FREQ_DIVIDER);
-1360:	} else if (cluster0_qos_min == 0) {
-1361:		cluster0_qos_min = freq_min[CL_ZERO];
-1362:		nsize = snprintf(buf, 10, "%u\n", cluster0_qos_min / LIMIT_FREQ_DIVIDER);
-1368:static ssize_t store_cpufreq_min_limit(struct kobject *kobj, struct attribute *attr,
-1371:	int cluster1_input, cluster0_input;
-1373:	if (!sscanf(buf, "%8d", &cluster1_input))
-1376:	if (cluster1_input >= (int)freq_min[CL_ONE]) {
-1386:		cluster1_input = min(cluster1_input, (int)freq_max[CL_ONE]);
-1387:		if (cluster1_input >= exynos_info[CL_ONE]->boost_freq)
-1388:			cluster0_input = core_max_qos_const[CL_ZERO].default_value;
-1390:			cluster0_input = exynos_info[CL_ZERO]->min_qos_freq;
-1391:	} else if (cluster1_input < (int)freq_min[CL_ONE]) {
-1401:		if (cluster1_input < 0) {
-1402:			cluster1_input = qos_min_default_value[CL_ONE];
-1403:			cluster0_input = qos_min_default_value[CL_ZERO];
-1405:			cluster0_input = cluster1_input * LIMIT_FREQ_DIVIDER;
-1406:			if (cluster0_input > 0)
-1407:				cluster0_input = min(cluster0_input, (int)freq_max[CL_ZERO]);
-1408:			cluster1_input = qos_min_default_value[CL_ONE];
-1412:	if (pm_qos_request_active(&core_min_qos[CL_ONE]))
-1413:		pm_qos_update_request(&core_min_qos[CL_ONE], cluster1_input);
-1414:	if (pm_qos_request_active(&core_min_qos[CL_ZERO]))
-1415:		pm_qos_update_request(&core_min_qos[CL_ZERO], cluster0_input);
-1420:static ssize_t show_cpufreq_max_limit(struct kobject *kobj,
-1424:	unsigned int cluster1_qos_max = pm_qos_request(qos_max_class[CL_ONE]);
-1425:	unsigned int cluster0_qos_max = pm_qos_request(qos_max_class[CL_ZERO]);
-1427:	if (cluster1_qos_max > 0) {
-1428:		if (cluster1_qos_max < freq_min[CL_ONE])
-1429:			cluster1_qos_max = freq_min[CL_ONE];
-1430:		else if (cluster1_qos_max > freq_max[CL_ONE])
-1431:			cluster1_qos_max = freq_max[CL_ONE];
-1432:		nsize = snprintf(buf, 10, "%u\n", cluster1_qos_max);
-1433:	} else if (cluster0_qos_max > 0) {
-1434:		if (cluster0_qos_max < freq_min[CL_ZERO])
-1435:			cluster0_qos_max = freq_min[CL_ZERO];
-1436:		if (cluster0_qos_max > freq_max[CL_ZERO])
-1437:			cluster0_qos_max = freq_max[CL_ZERO];
-1438:		nsize = snprintf(buf, 10, "%u\n", cluster0_qos_max / LIMIT_FREQ_DIVIDER);
-1439:	} else if (cluster0_qos_max == 0) {
-1440:		cluster0_qos_max = freq_min[CL_ZERO];
-1441:		nsize = snprintf(buf, 10, "%u\n", cluster0_qos_max / LIMIT_FREQ_DIVIDER);
-1447:static void enable_nonboot_cluster_cpus(void)
-1449:	pm_qos_update_request(&cpufreq_cpu_hotplug_max_request, NR_CPUS);
-1452:static void disable_nonboot_cluster_cpus(void)
-1454:	pm_qos_update_request(&cpufreq_cpu_hotplug_max_request, NR_CLUST1_CPUS);
-1457:static ssize_t store_cpufreq_max_limit(struct kobject *kobj, struct attribute *attr,
-1460:	int cluster1_input, cluster0_input;
-1462:	if (!sscanf(buf, "%8d", &cluster1_input))
-1465:	if (cluster1_input >= (int)freq_min[CL_ONE]) {
-1466:		if (cluster1_hotplugged) {
-1467:			enable_nonboot_cluster_cpus();
-1468:			cluster1_hotplugged = false;
-1471:		cluster1_input = max(cluster1_input, (int)freq_min[CL_ONE]);
-1472:		cluster0_input = core_max_qos_const[CL_ZERO].default_value;
-1473:	} else if (cluster1_input < (int)freq_min[CL_ONE]) {
-1474:		if (cluster1_input < 0) {
-1475:			if (cluster1_hotplugged) {
-1476:				enable_nonboot_cluster_cpus();
-1477:				cluster1_hotplugged = false;
-1480:			cluster1_input = core_max_qos_const[CL_ONE].default_value;
-1481:			cluster0_input = core_max_qos_const[CL_ZERO].default_value;
-1483:			cluster0_input = cluster1_input * LIMIT_FREQ_DIVIDER;
-1484:			if (cluster0_input > 0)
-1485:				cluster0_input = max(cluster0_input, (int)freq_min[CL_ZERO]);
-1486:			cluster1_input = qos_min_default_value[CL_ONE];
-1488:			if (!cluster1_hotplugged) {
-1489:				disable_nonboot_cluster_cpus();
-1490:				cluster1_hotplugged = true;
-1495:	if (pm_qos_request_active(&core_max_qos[CL_ONE]))
-1496:		pm_qos_update_request(&core_max_qos[CL_ONE], cluster1_input);
-1497:	if (pm_qos_request_active(&core_max_qos[CL_ZERO]))
-1498:		pm_qos_update_request(&core_max_qos[CL_ZERO], cluster0_input);
-1505:static ssize_t show_cpufreq_self_discharging(struct kobject *kobj,
-1511:static ssize_t store_cpufreq_self_discharging(struct kobject *kobj, struct attribute *attr,
-1521:		cpu_idle_poll_ctrl(true);
-1525:		cpu_idle_poll_ctrl(false);
-1532:inline ssize_t show_core_freq_table(char *buf, cluster_type cluster)
-1536:	struct cpufreq_frequency_table *freq_table = exynos_info[cluster]->freq_table;
-1538:	for (i = 0; freq_table[i].frequency != CPUFREQ_TABLE_END; i++)
-1546:	for (i = 0; freq_table[i].frequency != CPUFREQ_TABLE_END; i++) {
-1547:		if (freq_table[i].frequency != CPUFREQ_ENTRY_INVALID)
-1549:					freq_table[i].frequency);
-1557:				cluster_type cluster,
-1560:	int qos_class = (qos_flag ? qos_max_class[cluster] : qos_min_class[cluster]);
-1565:		qos_value = freq_info[cluster];
-1571:				cluster_type cluster,
-1584:			input = max(input, (int)freq_info[cluster]);
-1586:			input = min(input, (int)freq_info[cluster]);
-1589:	if (pm_qos_request_active(&core_qos_real[cluster]))
-1590:		pm_qos_update_request(&core_qos_real[cluster], input);
-1595:static ssize_t show_cluster1_freq_table(struct kobject *kobj,
-1598:	return show_core_freq_table(buf, CL_ONE);
-1601:static ssize_t show_cluster1_min_freq(struct kobject *kobj,
-1604:	return show_core_freq(buf, CL_ONE, false);
-1607:static ssize_t show_cluster1_max_freq(struct kobject *kobj,
-1610:	return show_core_freq(buf, CL_ONE, true);
-1613:static ssize_t store_cluster1_min_freq(struct kobject *kobj, struct attribute *attr,
-1616:	return store_core_freq(buf, count, CL_ONE, false);
-1619:static ssize_t store_cluster1_max_freq(struct kobject *kobj, struct attribute *attr,
-1622:	return store_core_freq(buf, count, CL_ONE, true);
-1625:static ssize_t show_cluster0_freq_table(struct kobject *kobj,
-1628:	return show_core_freq_table(buf, CL_ZERO);
-1631:static ssize_t show_cluster0_min_freq(struct kobject *kobj,
-1634:	return show_core_freq(buf, CL_ZERO, false);
-1637:static ssize_t show_cluster0_max_freq(struct kobject *kobj,
-1640:	return show_core_freq(buf, CL_ZERO, true);
-1643:static ssize_t store_cluster0_min_freq(struct kobject *kobj, struct attribute *attr,
-1646:	return store_core_freq(buf, count, CL_ZERO, false);
-1649:static ssize_t store_cluster0_max_freq(struct kobject *kobj, struct attribute *attr,
-1652:	return store_core_freq(buf, count, CL_ZERO, true);
-1655:define_one_global_ro(cluster1_freq_table);
-1656:define_one_global_rw(cluster1_min_freq);
-1657:define_one_global_rw(cluster1_max_freq);
-1658:define_one_global_ro(cluster0_freq_table);
-1659:define_one_global_rw(cluster0_min_freq);
-1660:define_one_global_rw(cluster0_max_freq);
-1663:	&cluster1_freq_table.attr,
-1664:	&cluster1_min_freq.attr,
-1665:	&cluster1_max_freq.attr,
-1666:	&cluster0_freq_table.attr,
-1667:	&cluster0_min_freq.attr,
-1668:	&cluster0_max_freq.attr,
-1674:	.name = "mp-cpufreq",
-1680:			show_cpufreq_smpl_warn_ctrl, store_cpufreq_smpl_warn_ctrl);
-1681:static struct global_attr cpufreq_table =
-1682:		__ATTR(cpufreq_table, S_IRUGO, show_cpufreq_table, NULL);
-1683:static struct global_attr cpufreq_min_limit =
-1684:		__ATTR(cpufreq_min_limit, S_IRUGO | S_IWUSR,
-1685:			show_cpufreq_min_limit, store_cpufreq_min_limit);
-1686:static struct global_attr cpufreq_max_limit =
-1687:		__ATTR(cpufreq_max_limit, S_IRUGO | S_IWUSR,
-1688:			show_cpufreq_max_limit, store_cpufreq_max_limit);
-1692:static struct global_attr cpufreq_self_discharging =
-1693:		__ATTR(cpufreq_self_discharging, S_IRUGO | S_IWUSR,
-1694:			show_cpufreq_self_discharging, store_cpufreq_self_discharging);
-1699:static int exynos_cpufreq_reboot_notifier_call(struct notifier_block *this,
-1702:	struct cpufreq_frequency_table *freq_table;
-1713:		mutex_lock(&cpufreq_lock);
-1715:		mutex_unlock(&cpufreq_lock);
-1724:			set_abb_first_than_volt = is_set_abb_first(CLUSTER_ID(cl), freqs[cl]->old, max(bootfreq, freqs[cl]->old));
-1726:#ifdef CONFIG_EXYNOS_CL_DVFS_CPU
-1727:		exynos_cl_dvfs_stop(CLUSTER_ID(cl), cl_index);
-1737:			freq_table = exynos_info[cl]->freq_table;
-1738:			for (i = 0; (freq_table[i].frequency != CPUFREQ_TABLE_END); i++) {
-1739:				if (freq_table[i].frequency == CPUFREQ_ENTRY_INVALID)
-1741:				if (freq_table[i].frequency == abb_freq) {
-1742:					set_match_abb(CLUSTER_ID(cl), exynos_info[cl]->abb_table[i]);
-1767:static struct notifier_block exynos_cpufreq_reboot_notifier = {
-1768:	.notifier_call = exynos_cpufreq_reboot_notifier_call,
-1771:static int exynos_cluster1_min_qos_handler(struct notifier_block *b, unsigned long val, void *v)
-1775:	struct cpufreq_policy *policy;
-1776:	int cpu = boot_cluster ? 0 : NR_CLUST0_CPUS;
-1778:	freq = exynos_getspeed(cpu);
-1782:	policy = cpufreq_cpu_get(cpu);
-1788:		cpufreq_cpu_put(policy);
-1792:#if defined(CONFIG_CPU_FREQ_GOV_USERSPACE) || defined(CONFIG_CPU_FREQ_GOV_PERFORMANCE)
-1795:		cpufreq_cpu_put(policy);
-1800:	ret = __cpufreq_driver_target(policy, val, CPUFREQ_RELATION_H);
-1801:	cpufreq_cpu_put(policy);
-1812:static struct notifier_block exynos_cluster1_min_qos_notifier = {
-1813:	.notifier_call = exynos_cluster1_min_qos_handler,
-1817:static int exynos_cluster1_max_qos_handler(struct notifier_block *b, unsigned long val, void *v)
-1821:	struct cpufreq_policy *policy;
-1822:	int cpu = boot_cluster ? 0 : NR_CLUST0_CPUS;
-1824:	freq = exynos_getspeed(cpu);
-1828:	policy = cpufreq_cpu_get(cpu);
-1834:		cpufreq_cpu_put(policy);
-1838:#if defined(CONFIG_CPU_FREQ_GOV_USERSPACE) || defined(CONFIG_CPU_FREQ_GOV_PERFORMANCE)
-1841:		cpufreq_cpu_put(policy);
-1845:	ret = __cpufreq_driver_target(policy, val, CPUFREQ_RELATION_H);
-1846:	cpufreq_cpu_put(policy);
-1857:static struct notifier_block exynos_cluster1_max_qos_notifier = {
-1858:	.notifier_call = exynos_cluster1_max_qos_handler,
-1862:static int exynos_cluster0_min_qos_handler(struct notifier_block *b, unsigned long val, void *v)
-1866:	struct cpufreq_policy *policy;
-1867:	int cpu = boot_cluster ? NR_CLUST1_CPUS : 0;
-1870:#if defined(CONFIG_CPU_FREQ_GOV_INTERACTIVE)
-1871:	threshold_freq = cpufreq_interactive_get_hispeed_freq(0);
-1878:	freq = exynos_getspeed(cpu);
-1882:	policy = cpufreq_cpu_get(cpu);
-1888:		cpufreq_cpu_put(policy);
-1892:#if defined(CONFIG_CPU_FREQ_GOV_USERSPACE) || defined(CONFIG_CPU_FREQ_GOV_PERFORMANCE)
-1895:		cpufreq_cpu_put(policy);
-1900:	ret = __cpufreq_driver_target(policy, val, CPUFREQ_RELATION_H);
-1901:	cpufreq_cpu_put(policy);
-1912:static struct notifier_block exynos_cluster0_min_qos_notifier = {
-1913:	.notifier_call = exynos_cluster0_min_qos_handler,
-1917:static int exynos_cluster0_max_qos_handler(struct notifier_block *b, unsigned long val, void *v)
-1921:	struct cpufreq_policy *policy;
-1922:	int cpu = boot_cluster ? NR_CLUST1_CPUS : 0;
-1924:	freq = exynos_getspeed(cpu);
-1928:	policy = cpufreq_cpu_get(cpu);
-1934:		cpufreq_cpu_put(policy);
-1938:#if defined(CONFIG_CPU_FREQ_GOV_USERSPACE) || defined(CONFIG_CPU_FREQ_GOV_PERFORMANCE)
-1941:		cpufreq_cpu_put(policy);
-1946:	ret = __cpufreq_driver_target(policy, val, CPUFREQ_RELATION_H);
-1947:	cpufreq_cpu_put(policy);
-1958:static struct notifier_block exynos_cluster0_max_qos_notifier = {
-1959:	.notifier_call = exynos_cluster0_max_qos_handler,
-1964:extern struct cpumask hmp_fast_cpu_mask;
-1965:static int big_cpu_cnt;
-1967:static int cpufreq_policy_notifier(struct notifier_block *nb,
-1970:	struct cpufreq_policy *policy = data;
-1973:	if (event != CPUFREQ_ADJUST || !policy->cpu)
-1976:	max_freq = exynos_cpufreq_get_possible_max_freq(big_cpu_cnt);
-1979:		cpufreq_verify_within_limits(policy, 0, max_freq);
-1984:/* Notifier for cpufreq policy change */
-1985:static struct notifier_block exynos_cpufreq_policy_nb = {
-1986:	.notifier_call = cpufreq_policy_notifier,
-1989:static int exynos_cpufreq_cpus_notifier(struct notifier_block *nb,
-1992:	struct cpumask mask;
-1993:	struct cpumask policy_update_mask;
-1997:	case CPUS_DOWN_COMPLETE:
-1998:	case CPUS_UP_PREPARE:
-1999:		cpumask_copy(&mask, data);
-2000:		cpumask_and(&mask, &mask, &hmp_fast_cpu_mask);
-2001:		big_cpu_cnt = cpumask_weight(&mask);
-2005:		 * of fast_cpu domain
-2007:		cpumask_clear(&policy_update_mask);
-2008:		cpumask_and(&policy_update_mask, &hmp_fast_cpu_mask, cpu_online_mask);
-2009:		if (!cpumask_weight(&policy_update_mask))
-2012:		/* if cpufreq_update_policy is failed after 50ms, cancel cpu_up */
-2014:		while(cpufreq_update_policy(cpumask_first(&policy_update_mask))
-2015:							&& event == CPUS_UP_PREPARE) {
-2021:	if (event == CPUS_UP_PREPARE) {
-2022:		mutex_lock(&cpufreq_lock);
-2024:		if (unlikely(freqs[CL_ONE]->old > exynos_cpufreq_get_possible_max_freq(big_cpu_cnt))) {
-2025:			pr_err("frequency(%d) is higher than possible max frequency of big cpu cnt: %d\n",
-2026:			freqs[CL_ONE]->old, big_cpu_cnt);
-2027:			mutex_unlock(&cpufreq_lock);
-2031:		mutex_unlock(&cpufreq_lock);
-2037:static struct notifier_block exynos_cpufreq_cpus_nb = {
-2038:	.notifier_call = exynos_cpufreq_cpus_notifier,
-2043:static int exynos_cpufreq_init(void)
-2046:	cluster_type cluster;
-2047:	struct cpufreq_frequency_table *freq_table;
-2048:	struct cpufreq_policy *policy;
-2050:	boot_cluster = 0;
-2052:	g_clamp_cpufreqs[CL_ONE] = UINT_MAX;
-2053:	g_clamp_cpufreqs[CL_ZERO] = UINT_MAX;
-2055:	/* Get to boot_cluster_num - 0 for CL_ZERO; 1 for CL_ONE */
-2056:	boot_cluster = !MPIDR_AFFINITY_LEVEL(cpu_logical_map(0), 1);
-2057:	pr_debug("%s: boot_cluster is %s\n", __func__,
-2058:					boot_cluster == CL_ZERO ? "CL_ZERO" : "CL_ONE");
-2059:	exynos_boot_cluster = boot_cluster;
-2061:	init_cpumask_cluster_set(boot_cluster);
-2063:	for (cluster = 0; cluster < CL_END; cluster++) {
-2064:		exynos_info[cluster]->regulator = regulator_get(NULL, (cluster ? "vdd_mngs" : "vdd_apollo"));
-2065:		if (IS_ERR(exynos_info[cluster]->regulator)) {
-2066:			exynos_info[cluster]->regulator = regulator_get(NULL, (cluster ? "vdd_eagle" : "vdd_kfc"));
-2067:			if (IS_ERR(exynos_info[cluster]->regulator)) {
-2069:												(cluster ? "cluster1" : "cluster0"));
-2074:		if (exynos_info[cluster]->set_freq == NULL) {
-2079:		freq_max[cluster] = exynos_info[cluster]->
-2080:			freq_table[exynos_info[cluster]->max_support_idx].frequency;
-2082:		freq_min[cluster] = exynos_info[cluster]->
-2083:			freq_table[exynos_info[cluster]->min_support_idx].frequency;
-2085:		set_boot_freq(cluster);
-2086:		set_resume_freq(cluster);
-2088:		exynos_info[cluster]->cur_volt = regulator_get_voltage(exynos_info[cluster]->regulator);
-2090:		/* set initial old frequency */
-2091:		freqs[cluster]->old = exynos_getspeed_cluster(cluster);
-2094:		 * boot freq index is needed if minimum supported frequency
-2097:			freq_table = exynos_info[cluster]->freq_table;
-2098:			exynos_info[cluster]->boot_freq_idx = -1;
-2099:			pr_debug("%s Core Max-Min frequency[%d - %d]KHz\n",
-2100:				cluster ? "CL_ONE" : "CL_ZERO", freq_max[cluster], freq_min[cluster]);
-2102:			for (i = L0; (freq_table[i].frequency != CPUFREQ_TABLE_END); i++) {
-2103:				if (exynos_info[cluster]->boot_freq == freq_table[i].frequency) {
-2104:					exynos_info[cluster]->boot_freq_idx = i;
-2105:					pr_debug("boot frequency[%d] index %d\n",
-2106:							exynos_info[cluster]->boot_freq, i);
-2109:				if (freq_table[i].frequency > freq_max[cluster] ||
-2110:					freq_table[i].frequency < freq_min[cluster])
-2111:					freq_table[i].frequency = CPUFREQ_ENTRY_INVALID;
-2115:		core_max_qos_const[cluster].target_value = freq_max[cluster];
-2116:		core_max_qos_const[cluster].default_value = freq_max[cluster];
-2117:		pm_qos_update_constraints(qos_max_class[cluster], &core_max_qos_const[cluster]);
-2119:		pm_qos_add_notifier(qos_min_class[cluster],
-2120:							(cluster ? &exynos_cluster1_min_qos_notifier :
-2121:							&exynos_cluster0_min_qos_notifier));
-2122:		pm_qos_add_notifier(qos_max_class[cluster],
-2123:							(cluster ? &exynos_cluster1_max_qos_notifier :
-2124:							&exynos_cluster0_max_qos_notifier));
-2128:	register_hotcpu_notifier(&exynos_cpufreq_cpu_up_nb);
-2129:	register_hotcpu_notifier(&exynos_cpufreq_cpu_down_nb);
-2130:	register_pm_notifier(&exynos_cpufreq_nb);
-2131:	register_reboot_notifier(&exynos_cpufreq_reboot_notifier);
-2137:	cpufreq_register_notifier(&exynos_cpufreq_policy_nb, CPUFREQ_POLICY_NOTIFIER);
-2138:	register_cpus_notifier(&exynos_cpufreq_cpus_nb);
-2139:	exynos_cpufreq_print_max_freq();
-2142:	/* block frequency scale before acquire boot lock */
-2143:#if !defined(CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE) && !defined(CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE)
-2144:	mutex_lock(&cpufreq_lock);
-2145:	exynos_info[CL_ZERO]->blocked = true;
-2146:	exynos_info[CL_ONE]->blocked = true;
-2147:	mutex_unlock(&cpufreq_lock);
-2149:	if (cpufreq_register_driver(&exynos_driver)) {
-2150:		pr_err("%s: failed to register cpufreq driver\n", __func__);
-2151:		goto err_cpufreq;
-2154:	for (cluster = 0; cluster < CL_END; cluster++) {
-2155:		pm_qos_add_request(&core_min_qos[cluster], qos_min_class[cluster],
-2156:						qos_min_default_value[cluster]);
-2157:		pm_qos_add_request(&core_max_qos[cluster], qos_max_class[cluster],
-2158:						core_max_qos_const[cluster].default_value);
-2159:		pm_qos_add_request(&core_min_qos_real[cluster], qos_min_class[cluster],
-2160:						qos_min_default_value[cluster]);
-2161:		pm_qos_add_request(&core_max_qos_real[cluster], qos_max_class[cluster],
-2162:						core_max_qos_const[cluster].default_value);
-2164:		if (exynos_info[cluster]->boot_cpu_min_qos) {
-2165:			pm_qos_add_request(&boot_min_qos[cluster], qos_min_class[cluster],
-2166:						qos_min_default_value[cluster]);
-2167:			if (!exynos_info[cluster]->boot_cpu_min_qos_timeout)
-2168:				exynos_info[cluster]->boot_cpu_min_qos_timeout = 40 * USEC_PER_SEC;
-2170:			pm_qos_update_request_timeout(&boot_min_qos[cluster],
-2171:						exynos_info[cluster]->boot_cpu_min_qos,
-2172:						exynos_info[cluster]->boot_cpu_min_qos_timeout);
-2175:		if (exynos_info[cluster]->boot_cpu_max_qos) {
-2176:			pm_qos_add_request(&boot_max_qos[cluster], qos_max_class[cluster],
-2177:						core_max_qos_const[cluster].default_value);
-2178:			if (!exynos_info[cluster]->boot_cpu_max_qos_timeout)
-2179:				exynos_info[cluster]->boot_cpu_max_qos_timeout = 40 * USEC_PER_SEC;
-2181:			pm_qos_update_request_timeout(&boot_max_qos[cluster],
-2182:						exynos_info[cluster]->boot_cpu_max_qos,
-2183:						exynos_info[cluster]->boot_cpu_max_qos_timeout);
-2186:		if (exynos_info[cluster]->bus_table)
-2187:			pm_qos_add_request(&exynos_mif_qos[cluster], PM_QOS_BUS_THROUGHPUT, 0);
-2190:	/* unblock frequency scale */
-2191:#if !defined(CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE) && !defined(CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE)
-2192:	mutex_lock(&cpufreq_lock);
-2193:	exynos_info[CL_ZERO]->blocked = false;
-2194:	exynos_info[CL_ONE]->blocked = false;
-2195:	mutex_unlock(&cpufreq_lock);
-2199:	 * forced call cpufreq target function.
-2200:	 * If target function is called by interactive governor when blocked cpufreq scale,
-2201:	 * interactive governor's target_freq is updated to new_freq. But, frequency is
-2202:	 * not changed because blocking cpufreq scale. And if governor request same frequency
-2203:	 * after unblocked scale, speedchange_task is not wakeup because new_freq and target_freq
-2207:	policy = cpufreq_cpu_get(NR_CLUST0_CPUS);
-2212:		cpufreq_cpu_put(policy);
-2216:	smp_call_function_single(NR_CLUST0_CPUS, exynos_qos_nop, NULL, 0);
-2217:	cpufreq_cpu_put(policy);
-2219:	ret = cpufreq_sysfs_create_group(&mp_attr_group);
-2221:		pr_err("%s: failed to create mp-cpufreq sysfs interface\n", __func__);
-2226:	ret = sysfs_create_file(power_kobj, &cpufreq_table.attr);
-2228:		pr_err("%s: failed to create cpufreq_table sysfs interface\n", __func__);
-2229:		goto err_cpu_table;
-2232:	ret = sysfs_create_file(power_kobj, &cpufreq_min_limit.attr);
-2234:		pr_err("%s: failed to create cpufreq_min_limit sysfs interface\n", __func__);
-2235:		goto err_cpufreq_min_limit;
-2238:	ret = sysfs_create_file(power_kobj, &cpufreq_max_limit.attr);
-2240:		pr_err("%s: failed to create cpufreq_max_limit sysfs interface\n", __func__);
-2241:		goto err_cpufreq_max_limit;
-2246:	ret = sysfs_create_file(power_kobj, &cpufreq_self_discharging.attr);
-2248:		pr_err("%s: failed to create cpufreq_self_discharging sysfs interface\n", __func__);
-2249:		goto err_cpufreq_self_discharging;
-2253:	exynos_cpufreq_init_done = true;
-2254:	exynos_cpufreq_init_notify_call_chain(CPUFREQ_INIT_COMPLETE);
-2256:	pr_info("%s: MP-CPUFreq Initialization Complete\n", __func__);
-2260:err_cpufreq_self_discharging:
-2262:	sysfs_remove_file(power_kobj, &cpufreq_max_limit.attr);
-2266:err_cpufreq_max_limit:
-2267:	sysfs_remove_file(power_kobj, &cpufreq_min_limit.attr);
-2268:err_cpufreq_min_limit:
-2269:	sysfs_remove_file(power_kobj, &cpufreq_table.attr);
-2270:err_cpu_table:
-2271:	cpufreq_sysfs_remove_group(&mp_attr_group);
-2275:	for (cluster = 0; cluster < CL_END; cluster++) {
-2276:		if (exynos_info[cluster]) {
-2277:			if (exynos_info[cluster]->bus_table &&
-2278:				pm_qos_request_active(&exynos_mif_qos[cluster]))
-2279:				pm_qos_remove_request(&exynos_mif_qos[cluster]);
-2281:			if (pm_qos_request_active(&boot_max_qos[cluster]))
-2282:				pm_qos_remove_request(&boot_max_qos[cluster]);
-2283:			if (pm_qos_request_active(&boot_min_qos[cluster]))
-2284:				pm_qos_remove_request(&boot_min_qos[cluster]);
-2286:			if (pm_qos_request_active(&core_min_qos[cluster]))
-2287:				pm_qos_remove_request(&core_min_qos[cluster]);
-2288:			if (pm_qos_request_active(&core_max_qos[cluster]))
-2289:				pm_qos_remove_request(&core_max_qos[cluster]);
-2290:			if (pm_qos_request_active(&core_min_qos_real[cluster]))
-2291:				pm_qos_remove_request(&core_min_qos_real[cluster]);
-2292:			if (pm_qos_request_active(&core_max_qos_real[cluster]))
-2293:				pm_qos_remove_request(&core_max_qos_real[cluster]);
-2296:	cpufreq_unregister_driver(&exynos_driver);
-2297:err_cpufreq:
-2298:	unregister_reboot_notifier(&exynos_cpufreq_reboot_notifier);
-2299:	unregister_pm_notifier(&exynos_cpufreq_nb);
-2300:	unregister_hotcpu_notifier(&exynos_cpufreq_cpu_up_nb);
-2301:	unregister_hotcpu_notifier(&exynos_cpufreq_cpu_down_nb);
-2303:	unregister_cpus_notifier(&exynos_cpufreq_cpus_nb);
-2306:	for (cluster = 0; cluster < CL_END; cluster++) {
-2308:		if (exynos_info[cluster]) {
-2310:			pm_qos_remove_notifier(qos_min_class[cluster],
-2311:								(cluster ? &exynos_cluster1_min_qos_notifier :
-2312:								&exynos_cluster0_min_qos_notifier));
-2313:			pm_qos_remove_notifier(qos_max_class[cluster],
-2314:								(cluster ? &exynos_cluster1_max_qos_notifier :
-2315:								&exynos_cluster0_max_qos_notifier));
-2318:			if (exynos_info[cluster]->regulator)
-2319:				regulator_put(exynos_info[cluster]->regulator);
-2327:static const struct of_device_id exynos_mp_cpufreq_match[] = {
-2329:		.compatible = "samsung,exynos-mp-cpufreq",
-2333:MODULE_DEVICE_TABLE(of, exynos_mp_cpufreq);
-2335:static struct platform_device_id exynos_mp_cpufreq_driver_ids[] = {
-2337:		.name		= "exynos-mp-cpufreq",
-2341:MODULE_DEVICE_TABLE(platform, exynos_mp_cpufreq_driver_ids);
-2344:static void exynos_mp_cpufreq_parse_minlock(char *cluster_name, unsigned int frequency, unsigned int *mif_freq)
-2347:	void *cpumif_block;
-2350:	cpumif_block = ect_get_block(BLOCK_MINLOCK);
-2351:	if (cpumif_block == NULL)
-2354:	domain = ect_minlock_get_domain(cpumif_block, cluster_name);
-2359:		if (domain->level[i].main_frequencies == frequency) {
-2369:static int exynos_mp_cpufreq_parse_frequency(char *cluster_name, struct exynos_dvfs_info *ptr)
-2379:	domain = ect_dvfs_get_domain(dvfs_block, cluster_name);
-2383:	ptr->freq_table = kzalloc(sizeof(struct cpufreq_frequency_table)
-2385:	if (ptr->freq_table == NULL) {
-2386:		pr_err("%s: failed to allocate memory for freq_table\n", __func__);
-2390:	ptr->volt_table = kzalloc(sizeof(unsigned int)
-2392:	if (ptr->volt_table == NULL) {
-2393:		pr_err("%s: failed to allocate for volt_table\n", __func__);
-2406:		ptr->freq_table[i].driver_data = i;
-2407:		ptr->freq_table[i].frequency = domain->list_level[i].level;
-2408:		ptr->volt_table[i] = 0;
-2409:		exynos_mp_cpufreq_parse_minlock(cluster_name, ptr->freq_table[i].frequency, &ptr->bus_table[i]);
-2416:static int exynos_mp_cpufreq_parse_dt(struct device_node *np, cluster_type cl)
-2419:	struct cpufreq_dvfs_table *table_ptr;
-2421:	const char *cluster_domain_name;
-2422:	char *cluster_name;
-2427:		pr_info("%s: cpufreq_dt is not existed. \n", __func__);
-2444:				&ptr->boot_cpu_max_qos))
-2448:				&ptr->boot_cpu_min_qos))
-2455:	if (cl == CL_ZERO) {
-2464:	if (cl == CL_ONE) {
-2472:		if (of_property_read_u32(np, "cl1_jig_boot_max_qos", &ptr->jig_boot_cpu_max_qos))
-2478:				* (NR_CLUST1_CPUS + 1), GFP_KERNEL);
-2480:				(unsigned int *)ptr->max_support_idx_table, NR_CLUST1_CPUS + 1);
-2489:	cluster_name = (cl ? "cl1_dvfs_table" :  "cl0_dvfs_table");
-2492:				&cluster_domain_name))
-2496:	not_using_ect = exynos_mp_cpufreq_parse_frequency((char *)cluster_domain_name, ptr);
-2500:		ptr->freq_table = kzalloc(sizeof(struct cpufreq_frequency_table)
-2502:		if (ptr->freq_table == NULL) {
-2503:			pr_err("%s: failed to allocate memory for freq_table\n", __func__);
-2507:		ptr->volt_table = kzalloc(sizeof(unsigned int)
-2509:		if (ptr->volt_table == NULL) {
-2510:			pr_err("%s: failed to allocate for volt_table\n", __func__);
-2522:		table_ptr = kzalloc(sizeof(struct cpufreq_dvfs_table)
-2525:			pr_err("%s: failed to allocate for cpufreq_dvfs_table\n", __func__);
-2529:		table_size = sizeof(struct cpufreq_dvfs_table) / sizeof(unsigned int);
-2531:		ret = of_property_read_u32_array(np, cluster_name,
-2540:			ptr->freq_table[i].driver_data = table_ptr[i].index;
-2541:			ptr->freq_table[i].frequency = table_ptr[i].frequency;
-2542:			ptr->volt_table[i] = table_ptr[i].voltage;
-2549:	ptr->freq_table[ptr->max_idx_num].driver_data = ptr->max_idx_num;
-2550:	ptr->freq_table[ptr->max_idx_num].frequency = CPUFREQ_TABLE_END;
-2556:static int exynos_mp_cpufreq_probe(struct platform_device *pdev)
-2559:	cluster_type cluster;
-2561:	pm_qos_add_request(&cpufreq_cpu_hotplug_max_request, PM_QOS_CPU_ONLINE_MAX,
-2562:						PM_QOS_CPU_ONLINE_MAX_DEFAULT_VALUE);
-2564:	for (cluster = 0; cluster < CL_END; cluster++) {
-2565:		exynos_info[cluster] = kzalloc(sizeof(struct exynos_dvfs_info), GFP_KERNEL);
-2566:		if (!exynos_info[cluster]) {
-2571:		freqs[cluster] = kzalloc(sizeof(struct cpufreq_freqs), GFP_KERNEL);
-2572:		if (!freqs[cluster]) {
-2577:		if (of_device_is_compatible(pdev->dev.of_node, "samsung,exynos-mp-cpufreq")) {
-2578:			ret = exynos_mp_cpufreq_parse_dt(pdev->dev.of_node, cluster);
-2586:	ret = exynos_cpufreq_cluster1_init(exynos_info[CL_ONE]);
-2590:	ret = exynos_cpufreq_cluster0_init(exynos_info[CL_ZERO]);
-2594:	ret = exynos_cpufreq_init();
-2598:	if (exynos_info[CL_ONE]->en_smpl && exynos_info[CL_ONE]->init_smpl) {
-2599:		exynos_cpufreq_smpl_warn_register_notifier(&exynos_cpufreq_smpl_warn_notifier);
-2600:		if (exynos_info[CL_ONE]->init_smpl() < 0) {
-2601:			pr_err("CL_ONE failed SMPL_WARN init\n");
-2602:			exynos_info[CL_ONE]->en_smpl = 0;
-2603:			exynos_info[CL_ONE]->check_smpl = NULL;
-2604:			exynos_cpufreq_smpl_warn_unregister_notifier(&exynos_cpufreq_smpl_warn_notifier);
-2615:	for (cluster = 0; cluster < CL_END; cluster++) {
-2616:		if (exynos_info[cluster]->bus_table)
-2617:			kfree(exynos_info[cluster]->bus_table);
-2619:		if (exynos_info[cluster]->volt_table)
-2620:			kfree(exynos_info[cluster]->volt_table);
-2622:		if (exynos_info[cluster]->freq_table)
-2623:			kfree(exynos_info[cluster]->freq_table);
-2625:		if (exynos_info[cluster])
-2626:			kfree(exynos_info[cluster]);
-2628:		if (freqs[cluster])
-2629:			kfree(freqs[cluster]);
-2637:static int exynos_mp_cpufreq_remove(struct platform_device *pdev)
-2639:	cluster_type cluster;
-2641:	for (cluster = 0; cluster < CL_END; cluster++) {
-2642:		if (exynos_info[cluster]->bus_table &&
-2643:				pm_qos_request_active(&exynos_mif_qos[cluster]))
-2644:			pm_qos_remove_request(&exynos_mif_qos[cluster]);
-2646:		if (pm_qos_request_active(&boot_max_qos[cluster]))
-2647:			pm_qos_remove_request(&boot_max_qos[cluster]);
-2648:		if (pm_qos_request_active(&boot_min_qos[cluster]))
-2649:			pm_qos_remove_request(&boot_min_qos[cluster]);
-2650:		if (pm_qos_request_active(&core_min_qos[cluster]))
-2651:			pm_qos_remove_request(&core_min_qos[cluster]);
-2652:		if (pm_qos_request_active(&core_max_qos[cluster]))
-2653:			pm_qos_remove_request(&core_max_qos[cluster]);
-2654:		if (pm_qos_request_active(&core_min_qos_real[cluster]))
-2655:			pm_qos_remove_request(&core_min_qos_real[cluster]);
-2656:		if (pm_qos_request_active(&core_max_qos_real[cluster]))
-2657:			pm_qos_remove_request(&core_max_qos_real[cluster]);
-2660:		pm_qos_remove_notifier(qos_min_class[cluster],
-2661:				(cluster ? &exynos_cluster1_min_qos_notifier :
-2662:				 &exynos_cluster0_min_qos_notifier));
-2663:		pm_qos_remove_notifier(qos_max_class[cluster],
-2664:				(cluster ? &exynos_cluster1_max_qos_notifier :
-2665:				 &exynos_cluster0_max_qos_notifier));
-2668:		if (exynos_info[cluster]->regulator)
-2669:			regulator_put(exynos_info[cluster]->regulator);
-2672:		if (exynos_info[cluster]->bus_table)
-2673:			kfree(exynos_info[cluster]->bus_table);
-2675:		if (exynos_info[cluster]->volt_table)
-2676:			kfree(exynos_info[cluster]->volt_table);
-2678:		if (exynos_info[cluster]->freq_table)
-2679:			kfree(exynos_info[cluster]->freq_table);
-2681:		if (exynos_info[cluster])
-2682:			kfree(exynos_info[cluster]);
-2684:		if (freqs[cluster])
-2685:			kfree(freqs[cluster]);
-2687:	unregister_reboot_notifier(&exynos_cpufreq_reboot_notifier);
-2688:	unregister_pm_notifier(&exynos_cpufreq_nb);
-2689:	unregister_hotcpu_notifier(&exynos_cpufreq_cpu_up_nb);
-2690:	unregister_hotcpu_notifier(&exynos_cpufreq_cpu_down_nb);
-2693:	unregister_cpus_notifier(&exynos_cpufreq_cpus_nb);
-2697:	sysfs_remove_file(power_kobj, &cpufreq_min_limit.attr);
-2698:	sysfs_remove_file(power_kobj, &cpufreq_table.attr);
-2699:	cpufreq_sysfs_remove_group(&mp_attr_group);
-2702:	cpufreq_unregister_driver(&exynos_driver);
-2706:static struct platform_driver exynos_mp_cpufreq_driver = {
-2707:	.probe	= exynos_mp_cpufreq_probe,
-2708:	.remove	= exynos_mp_cpufreq_remove,
-2709:	.id_table = exynos_mp_cpufreq_driver_ids,
-2711:		.name	= "exynos-mp-cpufreq",
-2713:		.of_match_table = of_match_ptr(exynos_mp_cpufreq_match),
-2717:static struct platform_device exynos_mp_cpufreq_device = {
-2718:	.name	= "exynos-cpufreq",
-2722:static int __init exynos_mp_cpufreq_init(void)
-2726:	ret = platform_device_register(&exynos_mp_cpufreq_device);
-2730:	return platform_driver_register(&exynos_mp_cpufreq_driver);
-2732:#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
-2733:device_initcall(exynos_mp_cpufreq_init);
-2735:late_initcall(exynos_mp_cpufreq_init);
-2751:static struct notifier_block cpufreq_muic_nb;
-2754:static int exynos_cpufreq_muic_notifier(struct notifier_block *nb,
-2778:static int __init exynos_cpufreq_late_init(void)
-2780:	cluster_type cluster;
-2791:	muic_notifier_register(&cpufreq_muic_nb,
-2792:			exynos_cpufreq_muic_notifier, MUIC_NOTIFY_DEV_CPUFREQ);
-2797:	pr_info("%s: JIG is attached: boot cpu qos %lu sec\n", __func__,
-2800:	for (cluster = 0; cluster < CL_END; cluster++) {
-2801:		if (!exynos_info[cluster]->jig_boot_cpu_max_qos)
-2802:			exynos_info[cluster]->jig_boot_cpu_max_qos =
-2803:				exynos_info[cluster]->boot_cpu_max_qos;
-2805:		if (exynos_info[cluster]->jig_boot_cpu_max_qos)
-2806:			pm_qos_add_request(&jig_boot_max_qos[cluster],
-2807:					qos_max_class[cluster],
-2808:					core_max_qos_const[cluster].default_value);
-2809:			pm_qos_update_request_timeout(&jig_boot_max_qos[cluster],
-2810:					exynos_info[cluster]->jig_boot_cpu_max_qos,
-2816:late_initcall(exynos_cpufreq_late_init);
-2819:static void __exit exynos_mp_cpufreq_exit(void)
-2821:	platform_driver_unregister(&exynos_mp_cpufreq_driver);
-2822:	platform_device_unregister(&exynos_mp_cpufreq_device);
-2824:module_exit(exynos_mp_cpufreq_exit);
 
-========================================
-=== S5E8890 PLL ===
-========================================
-12:	PLLs
-14:/* PLL141XX Clock Type */
-15:#define PLL141XX_MDIV_SHIFT		16
-16:#define PLL141XX_PDIV_SHIFT		8
-17:#define PLL141XX_SDIV_SHIFT		0
-18:#define PLL141XX_MDIV_MASK		0x3FF
-19:#define PLL141XX_PDIV_MASK		0x3F
-20:#define PLL141XX_SDIV_MASK		0x7
-21:#define PLL141XX_ENABLE			31
-22:#define PLL141XX_LOCKED			29
-23:#define PLL141XX_BYPASS			22
-25:/* PLL1431X Clock Type */
-26:#define PLL1431X_MDIV_SHIFT		16
-27:#define PLL1431X_PDIV_SHIFT		8
-28:#define PLL1431X_SDIV_SHIFT		0
-29:#define PLL1431X_K_SHIFT		0
-30:#define PLL1431X_MDIV_MASK		0x3FF
-31:#define PLL1431X_PDIV_MASK		0x3F
-32:#define PLL1431X_SDIV_MASK		0x7
-33:#define PLL1431X_K_MASK		0xFFFF
-34:#define PLL1431X_ENABLE			31
-35:#define PLL1431X_LOCKED			29
-36:#define PLL1431X_BYPASS			4
-40:static int mfc_pll_refcount[2] = {1, 1};
-42:static const struct pwrcal_pll_rate_table *_clk_get_pll_settings(
-43:					struct pwrcal_pll *pll_clk,
-44:					unsigned long long rate)
-47:	const struct pwrcal_pll_rate_table  *prate_table = pll_clk->rate_table;
-49:	for (i = 0; i < pll_clk->rate_count; i++) {
-50:		if (rate == prate_table[i].rate)
-51:			return &prate_table[i];
-57:static int _clk_pll141xx_find_pms(struct pll_spec *pll_spec,
-58:				struct pwrcal_pll_rate_table *rate_table,
-59:				unsigned long long rate)
-63:	unsigned long long tmprate, tmpfout;
-64:	unsigned long long mindiffrate = 0xFFFFFFFFFFFFFFFF;
-67:	for (p = pll_spec->pdiv_min; p <= pll_spec->pdiv_max; p++) {
-69:		if ((fref < pll_spec->fref_min) || (fref > pll_spec->fref_max))
-72:		for (s = pll_spec->sdiv_min; s <= pll_spec->sdiv_max; s++) {
-73:			tmprate = rate;
-74:			do_div(tmprate, KHZ);
-75:			tmprate = tmprate * p * (1 << s);
-76:			do_div(tmprate, (FIN_HZ_26M / KHZ));
-77:			m = (unsigned int)tmprate;
-79:			if ((m < pll_spec->mdiv_min)
-80:					|| (m > pll_spec->mdiv_max))
-84:			do_div(fvco, p);
-85:			if ((fvco < pll_spec->fvco_min)
-86:					|| (fvco > pll_spec->fvco_max))
-90:			if ((fout >= pll_spec->fout_min)
-91:					&& (fout <= pll_spec->fout_max)) {
-92:				tmprate = rate;
-93:				do_div(tmprate, KHZ);
-95:				do_div(tmpfout, KHZ);
-96:				if (tmprate == tmpfout) {
-97:					rate_table->rate = fout;
-98:					rate_table->pdiv = p;
-99:					rate_table->mdiv = m;
-100:					rate_table->sdiv = s;
-101:					rate_table->kdiv = 0;
-104:				if (tmpfout < tmprate && mindiffrate > tmprate - tmpfout) {
-105:					mindiffrate = tmprate - tmpfout;
-115:	if (mindiffrate != 0xFFFFFFFFFFFFFFFF) {
-116:		rate_table->rate = min_fout;
-117:		rate_table->pdiv = min_p;
-118:		rate_table->mdiv = min_m;
-119:		rate_table->sdiv = min_s;
-120:		rate_table->kdiv = 0;
-127:static int _clk_pll1419x_find_pms(struct pll_spec *pll_spec,
-128:				struct pwrcal_pll_rate_table *rate_table,
-129:				unsigned long long rate)
-133:	unsigned long long tmprate, tmpfout;
-134:	unsigned long long mindiffrate = 0xFFFFFFFFFFFFFFFF;
-137:	for (p = pll_spec->pdiv_min; p <= pll_spec->pdiv_max; p++) {
-139:		if ((fref < pll_spec->fref_min) || (fref > pll_spec->fref_max))
-142:		for (s = pll_spec->sdiv_min; s <= pll_spec->sdiv_max; s++) {
-143:			/*tmprate = rate;*/
-144:			tmprate = rate/2; /*for PLL1419*/
-145:			do_div(tmprate, KHZ);
-146:			tmprate = tmprate * p * (1 << s);
-147:			do_div(tmprate, (FIN_HZ_26M / KHZ));
-148:			m = (unsigned int)tmprate;
-150:			if ((m < pll_spec->mdiv_min)
-151:					|| (m > pll_spec->mdiv_max))
-155:			do_div(fvco, p);
-156:			if ((fvco < pll_spec->fvco_min)
-157:					|| (fvco > pll_spec->fvco_max))
-162:			if ((fout >= pll_spec->fout_min)
-163:					&& (fout <= pll_spec->fout_max)) {
-164:				tmprate = rate;
-165:				do_div(tmprate, KHZ);
-167:				do_div(tmpfout, KHZ);
-168:				if (tmprate == tmpfout) {
-169:					rate_table->rate = fout;
-170:					rate_table->pdiv = p;
-171:					rate_table->mdiv = m;
-172:					rate_table->sdiv = s;
-173:					rate_table->kdiv = 0;
-177:			if (tmpfout && tmpfout < tmprate && mindiffrate > tmprate - tmpfout) {
-178:				mindiffrate = tmprate - tmpfout;
-187:	if (mindiffrate != 0xFFFFFFFFFFFFFFFF) {
-188:		rate_table->rate = min_fout;
-189:		rate_table->pdiv = min_p;
-190:		rate_table->mdiv = min_m;
-191:		rate_table->sdiv = min_s;
-192:		rate_table->kdiv = 0;
-198:static int _clk_pll141xx_is_enabled(struct pwrcal_clk *clk)
-200:	return (int)(pwrcal_getbit(clk->offset, PLL141XX_ENABLE));
-203:static int _clk_pll141xx_enable(struct pwrcal_clk *clk)
-207:	if (pwrcal_getbit(clk->offset, PLL141XX_ENABLE))
-210:	pwrcal_setbit(clk->offset, PLL141XX_ENABLE, 1);
-213:		if (pwrcal_getbit(clk->offset, PLL141XX_LOCKED))
-217:		cpu_relax();
-223:static int _clk_pll1419x_enable(struct pwrcal_clk *clk)
-227:	if (pwrcal_getbit(clk->offset, PLL141XX_ENABLE))
-230:	pwrcal_setbit(clk->offset, PLL141XX_ENABLE, 1);
-233:		if (pwrcal_getbit(MIF0_PLL_CON0, PLL141XX_LOCKED))
-237:		cpu_relax();
-240:		if (pwrcal_getbit(MIF1_PLL_CON0, PLL141XX_LOCKED))
-244:		cpu_relax();
-247:		if (pwrcal_getbit(MIF2_PLL_CON0, PLL141XX_LOCKED))
-251:		cpu_relax();
-254:		if (pwrcal_getbit(MIF3_PLL_CON0, PLL141XX_LOCKED))
-258:		cpu_relax();
-265:static int _clk_pll141xx_disable(struct pwrcal_clk *clk)
-267:	pwrcal_setbit(clk->offset, PLL141XX_ENABLE, 0);
-272:int _clk_pll141xx_is_disabled_bypass(struct pwrcal_clk *clk)
-274:	if (pwrcal_getbit(clk->offset + 1, PLL141XX_BYPASS))
-281:int _clk_pll141xx_set_bypass(struct pwrcal_clk *clk, int bypass_disable)
-284:		pwrcal_setbit(clk + 1, PLL141XX_BYPASS, 1);
-286:		pwrcal_setbit(clk + 1, PLL141XX_BYPASS, 0);
-291:static int _clk_pll141xx_set_pms(struct pwrcal_clk *clk,
-292:				const struct pwrcal_pll_rate_table  *rate_table)
-294:	unsigned int mdiv, pdiv, sdiv, pll_con0;
-298:	pdiv = rate_table->pdiv;
-299:	mdiv = rate_table->mdiv;
-300:	sdiv = rate_table->sdiv;
-302:	pll_con0 = pwrcal_readl(clk->offset);
-303:	pll_con0 &= ~((PLL141XX_MDIV_MASK << PLL141XX_MDIV_SHIFT)
-304:			| (PLL141XX_PDIV_MASK << PLL141XX_PDIV_SHIFT)
-305:			| (PLL141XX_SDIV_MASK << PLL141XX_SDIV_SHIFT));
-306:	pll_con0 |=  (mdiv << PLL141XX_MDIV_SHIFT)
-307:			| (pdiv << PLL141XX_PDIV_SHIFT)
-308:			| (sdiv << PLL141XX_SDIV_SHIFT);
-309:	pll_con0 &= ~(1<<26);
-310:	pll_con0 |= (1<<5);
-312:	pwrcal_writel(clk->status, pdiv*150);
-313:	pwrcal_writel(clk->offset, pll_con0);
-315:	if (pll_con0 & (1 << PLL141XX_ENABLE)) {
-317:			if (pwrcal_getbit(clk->offset, PLL141XX_LOCKED))
-321:			cpu_relax();
-329:static int _clk_pll1419x_set_pms(struct pwrcal_clk *clk,
-330:				const struct pwrcal_pll_rate_table  *rate_table)
-332:	unsigned int mdiv, pdiv, sdiv, pll_con0;
-336:	pdiv = rate_table->pdiv;
-337:	mdiv = rate_table->mdiv;
-338:	sdiv = rate_table->sdiv;
-340:	pll_con0 = pwrcal_readl(clk->offset);
-341:	pll_con0 &= ~((PLL141XX_MDIV_MASK << PLL141XX_MDIV_SHIFT)
-342:			| (PLL141XX_PDIV_MASK << PLL141XX_PDIV_SHIFT)
-343:			| (PLL141XX_SDIV_MASK << PLL141XX_SDIV_SHIFT));
-344:	pll_con0 |=  (mdiv << PLL141XX_MDIV_SHIFT)
-345:			| (pdiv << PLL141XX_PDIV_SHIFT)
-346:			| (sdiv << PLL141XX_SDIV_SHIFT);
-348:	pwrcal_writel(MIF0_PLL_LOCK, pdiv*150);
-349:	pwrcal_writel(MIF1_PLL_LOCK, pdiv*150);
-350:	pwrcal_writel(MIF2_PLL_LOCK, pdiv*150);
-351:	pwrcal_writel(MIF3_PLL_LOCK, pdiv*150);
-352:	pwrcal_writel(clk->offset, pll_con0);
-354:	if (pll_con0 & (1 << PLL141XX_ENABLE)) {
-356:			if (pwrcal_getbit(MIF0_PLL_CON0, PLL141XX_LOCKED))
-360:			cpu_relax();
-363:			if (pwrcal_getbit(MIF1_PLL_CON0, PLL141XX_LOCKED))
-367:			cpu_relax();
-370:			if (pwrcal_getbit(MIF2_PLL_CON0, PLL141XX_LOCKED))
-374:			cpu_relax();
-377:			if (pwrcal_getbit(MIF3_PLL_CON0, PLL141XX_LOCKED))
-381:			cpu_relax();
-390:static int _clk_pll141xx_set_rate(struct pwrcal_clk *clk,
-391:					unsigned long long rate)
-393:	struct pwrcal_pll *pll = to_pll(clk);
-394:	struct pll_spec *pll_spec;
-395:	struct pwrcal_pll_rate_table  tmp_rate_table;
-396:	const struct pwrcal_pll_rate_table  *rate_table;
-398:	if (rate == 0) {
-399:		if (_clk_pll141xx_is_enabled(clk) != 0)
-400:			if (_clk_pll141xx_disable(clk))
-405:	rate_table = _clk_get_pll_settings(pll, rate);
-406:	if (rate_table == NULL) {
-407:		pll_spec = clk_pll_get_spec(clk);
-408:		if (pll_spec == NULL)
-411:		if (_clk_pll141xx_find_pms(pll_spec, &tmp_rate_table, rate)) {
-412:			pr_err("can't find pms value for rate(%lldHz) of \'%s\'",
-413:				rate,
-418:		rate_table = &tmp_rate_table;
-420:		pr_warn("not exist in rate table, p(%d), m(%d), s(%d), fout(%lldHz) %s",
-421:				rate_table->pdiv,
-422:				rate_table->mdiv,
-423:				rate_table->sdiv,
-424:				rate,
-428:	if (_clk_pll141xx_set_pms(clk, rate_table))
-431:	if (rate != 0) {
-432:		if (_clk_pll141xx_is_enabled(clk) == 0)
-433:			_clk_pll141xx_enable(clk);
-441:static int _clk_pll1419x_set_rate(struct pwrcal_clk *clk,
-442:					unsigned long long rate)
-444:	struct pwrcal_pll *pll = to_pll(clk);
-445:	struct pll_spec *pll_spec;
-446:	struct pwrcal_pll_rate_table  tmp_rate_table;
-447:	const struct pwrcal_pll_rate_table  *rate_table;
-449:	if (rate == 0) {
-450:		if (_clk_pll141xx_is_enabled(clk) != 0)
-451:			if (_clk_pll141xx_disable(clk))
-456:	rate_table = _clk_get_pll_settings(pll, rate);
-457:	if (rate_table == NULL) {
-458:		pll_spec = clk_pll_get_spec(clk);
-459:		if (pll_spec == NULL)
-462:		if (_clk_pll1419x_find_pms(pll_spec, &tmp_rate_table, rate)) {
-463:			pr_err("can't find pms value for rate(%lldHz) of \'%s\'",
-464:				rate,
-469:		rate_table = &tmp_rate_table;
-471:		pr_warn("not exist in rate table, p(%d), m(%d), s(%d), fout(%lldHz) %s",
-472:				rate_table->pdiv,
-473:				rate_table->mdiv,
-474:				rate_table->sdiv,
-475:				rate,
-479:	_clk_pll141xx_disable(clk);
-481:	if (_clk_pll1419x_set_pms(clk, rate_table))
-484:	if (rate != 0) {
-485:		if (_clk_pll141xx_is_enabled(clk) == 0)
-486:			_clk_pll1419x_enable(clk);
-495:static unsigned long long _clk_pll141xx_get_rate(struct pwrcal_clk *clk)
-497:	unsigned int mdiv, pdiv, sdiv, pll_con0;
-500:	if (_clk_pll141xx_is_enabled(clk) == 0)
-502:	pll_con0 = pwrcal_readl(clk->offset);
-503:	mdiv = (pll_con0 >> PLL141XX_MDIV_SHIFT) & PLL141XX_MDIV_MASK;
-504:	pdiv = (pll_con0 >> PLL141XX_PDIV_SHIFT) & PLL141XX_PDIV_MASK;
-505:	sdiv = (pll_con0 >> PLL141XX_SDIV_SHIFT) & PLL141XX_SDIV_MASK;
-507:	if (pdiv == 0) {
-508:		pr_err("pdiv is 0, id(%s)", clk->name);
-511:	fout = FIN_HZ_26M * mdiv;
-512:	do_div(fout, (pdiv << sdiv));
-516:static unsigned long long _clk_pll1419x_get_rate(struct pwrcal_clk *clk)
-518:	unsigned int mdiv, pdiv, sdiv, pll_con0;
-521:	if (_clk_pll141xx_is_enabled(clk) == 0)
-524:	pll_con0 = pwrcal_readl(clk->offset);
-525:	mdiv = (pll_con0 >> PLL141XX_MDIV_SHIFT) & PLL141XX_MDIV_MASK;
-526:	pdiv = (pll_con0 >> PLL141XX_PDIV_SHIFT) & PLL141XX_PDIV_MASK;
-527:	sdiv = (pll_con0 >> PLL141XX_SDIV_SHIFT) & PLL141XX_SDIV_MASK;
-529:	if (pdiv == 0) {
-530:		pr_err("pdiv is 0, id(%s)", clk->name);
-533:	fout = FIN_HZ_26M * 2 * mdiv;
-534:	do_div(fout, (pdiv << sdiv));
-538:static int _clk_pll141xx_mfc_is_enabled(struct pwrcal_clk *clk)
-540:	if (clk->id == MFC_PLL_GATE && mfc_pll_refcount[0])
-543:	if (clk->id == MFC_PLL_DVFS && mfc_pll_refcount[1])
-549:static int _clk_pll141xx_mfc_enable(struct pwrcal_clk *clk)
-553:	if (clk->id == MFC_PLL_GATE)
-554:		mfc_pll_refcount[0] = 1;
-556:	if (clk->id == MFC_PLL_DVFS)
-557:		mfc_pll_refcount[1] = 1;
-559:	if (mfc_pll_refcount[0] + mfc_pll_refcount[1] < 2)
-562:	if (pwrcal_getbit(clk->offset, PLL141XX_ENABLE))
-565:	pwrcal_setbit(clk->offset, PLL141XX_ENABLE, 1);
-568:		if (pwrcal_getbit(clk->offset, PLL141XX_LOCKED))
-572:		cpu_relax();
-575:	if (pwrcal_mux_set_src(CLK(TOP_MUX_MFC_PLL), 1))
-581:static int _clk_pll141xx_mfc_disable(struct pwrcal_clk *clk)
-583:	if (clk->id == MFC_PLL_GATE)
-584:		mfc_pll_refcount[0] = 0;
-586:	if (clk->id == MFC_PLL_DVFS)
-587:		mfc_pll_refcount[1] = 0;
-589:	if (pwrcal_mux_set_src(CLK(TOP_MUX_MFC_PLL), 0))
-592:	pwrcal_setbit(clk->offset, PLL141XX_ENABLE, 0);
-597:static int _clk_pll141xx_mfc_set_rate(struct pwrcal_clk *clk,
-598:					unsigned long long rate)
-600:	struct pwrcal_pll *pll = to_pll(clk);
-601:	struct pll_spec *pll_spec;
-602:	struct pwrcal_pll_rate_table  tmp_rate_table;
-603:	const struct pwrcal_pll_rate_table  *rate_table;
-605:	if (rate == 0) {
-606:		if (_clk_pll141xx_mfc_is_enabled(clk) != 0)
-607:			if (_clk_pll141xx_mfc_disable(clk))
-612:	rate_table = _clk_get_pll_settings(pll, rate);
-613:	if (rate_table == NULL) {
-614:		pll_spec = clk_pll_get_spec(clk);
-615:		if (pll_spec == NULL)
-618:		if (_clk_pll141xx_find_pms(pll_spec, &tmp_rate_table, rate)) {
-619:			pr_err("can't find pms value for rate(%lldHz) of \'%s\'",
-620:				rate,
-625:		rate_table = &tmp_rate_table;
-627:		pr_warn("not exist in rate table, p(%d), m(%d), s(%d), fout(%lldHz) %s",
-628:				rate_table->pdiv,
-629:				rate_table->mdiv,
-630:				rate_table->sdiv,
-631:				rate,
-635:	if (_clk_pll141xx_set_pms(clk, rate_table))
-638:	if (rate != 0) {
-639:		if (_clk_pll141xx_mfc_is_enabled(clk) == 0)
-640:			_clk_pll141xx_mfc_enable(clk);
-648:static unsigned long long _clk_pll141xx_mfc_get_rate(struct pwrcal_clk *clk)
-650:	unsigned int mdiv, pdiv, sdiv, pll_con0;
-653:	if (_clk_pll141xx_mfc_is_enabled(clk) == 0)
-655:	pll_con0 = pwrcal_readl(clk->offset);
-656:	mdiv = (pll_con0 >> PLL141XX_MDIV_SHIFT) & PLL141XX_MDIV_MASK;
-657:	pdiv = (pll_con0 >> PLL141XX_PDIV_SHIFT) & PLL141XX_PDIV_MASK;
-658:	sdiv = (pll_con0 >> PLL141XX_SDIV_SHIFT) & PLL141XX_SDIV_MASK;
-660:	if (pdiv == 0) {
-661:		pr_err("pdiv is 0, id(%s)", clk->name);
-664:	fout = FIN_HZ_26M * mdiv;
-665:	do_div(fout, (pdiv << sdiv));
-669:static int _clk_pll1431x_find_pms(struct pll_spec *pll_spec,
-670:					struct pwrcal_pll_rate_table *rate_table,
-671:					unsigned long long rate)
-676:	unsigned long long tmprate, tmpfout;
-678:	for (p = pll_spec->pdiv_min; p <= pll_spec->pdiv_max; p++) {
-680:		if ((fref < pll_spec->fref_min) || (fref > pll_spec->fref_max))
-683:		for (s = pll_spec->sdiv_min; s <= pll_spec->sdiv_max; s++) {
-684:			tmprate = rate;
-685:			do_div(tmprate, KHZ);
-686:			tmprate = tmprate * p * (1 << s);
-687:			do_div(tmprate, (FIN_HZ_26M / KHZ));
-688:			m = (unsigned int)tmprate;
-690:			if ((m < pll_spec->mdiv_min)
-691:					|| (m > pll_spec->mdiv_max))
-694:			tmprate = rate;
-695:			do_div(tmprate, KHZ);
-696:			tmprate = tmprate * p * (1 << s);
-697:			do_div(tmprate, (FIN_HZ_26M / KHZ));
-698:			tmprate = (tmprate - m) * 65536;
-699:			k = (unsigned int)tmprate;
-700:			if ((k < pll_spec->kdiv_min)
-701:					|| (k > pll_spec->kdiv_max))
-705:			do_div(fvco, p);
-707:			if ((fvco < pll_spec->fvco_min)
-708:					|| (fvco > pll_spec->fvco_max))
-712:			if ((fout >= pll_spec->fout_min)
-713:				&& (fout <= pll_spec->fout_max)) {
-714:				tmprate = rate;
-715:				do_div(tmprate, KHZ);
-717:				do_div(tmpfout, KHZ);
-718:				if (tmprate == tmpfout) {
-719:					rate_table->rate = fout;
-720:					rate_table->pdiv = p;
-721:					rate_table->mdiv = m;
-722:					rate_table->sdiv = s;
-723:					rate_table->kdiv = k;
-733:static int _clk_pll1431x_is_enabled(struct pwrcal_clk *clk)
-735:	return (int)(pwrcal_getbit(clk->offset, PLL1431X_ENABLE));
-738:static int _clk_pll1431x_enable(struct pwrcal_clk *clk)
-742:	if (pwrcal_getbit(clk->offset, PLL1431X_ENABLE))
-745:	pwrcal_setbit(clk->offset, PLL1431X_ENABLE, 1);
-748:		if (pwrcal_getbit(clk->offset, PLL1431X_LOCKED))
-752:		cpu_relax();
-758:static int _clk_pll1431x_disable(struct pwrcal_clk *clk)
-760:	pwrcal_setbit(clk->offset, PLL1431X_ENABLE, 0);
-765:int _clk_pll1431x_is_disabled_bypass(struct pwrcal_clk *clk)
-767:	if (pwrcal_getbit(clk->offset + 2, PLL1431X_BYPASS))
-773:int _clk_pll1431x_set_bypass(struct pwrcal_clk *clk, int bypass_disable)
-776:		pwrcal_setbit(clk->offset + 2, PLL1431X_BYPASS, 1);
-778:		pwrcal_setbit(clk->offset + 2, PLL1431X_BYPASS, 0);
-783:static int _clk_pll1431x_set_pms(struct pwrcal_clk *clk,
-784:			const struct pwrcal_pll_rate_table  *rate_table)
-786:	unsigned int mdiv, pdiv, sdiv, pll_con0, pll_con1;
-787:	signed short kdiv;
-790:	pdiv = rate_table->pdiv;
-791:	mdiv = rate_table->mdiv;
-792:	sdiv = rate_table->sdiv;
-793:	kdiv = rate_table->kdiv;
-795:	pll_con0 = pwrcal_readl(clk->offset);
-796:	pll_con1 = pwrcal_readl(clk->offset + 1);
-797:	pll_con0 &= ~((PLL1431X_MDIV_MASK << PLL1431X_MDIV_SHIFT)
-798:			| (PLL1431X_PDIV_MASK << PLL1431X_PDIV_SHIFT)
-799:			| (PLL1431X_SDIV_MASK << PLL1431X_SDIV_SHIFT));
-800:	pll_con0 |=  (mdiv << PLL1431X_MDIV_SHIFT)
-801:			| (pdiv << PLL1431X_PDIV_SHIFT)
-802:			| (sdiv << PLL1431X_SDIV_SHIFT);
-803:	pll_con0 &= ~(1<<26);
-804:	pll_con0 |= (1<<5);
-806:	pll_con1 &= ~(PLL1431X_K_MASK << PLL1431X_K_SHIFT);
-807:	pll_con1 |=  (kdiv << PLL1431X_K_SHIFT);
-809:	if (kdiv == 0)
-810:		pwrcal_writel(clk->status, pdiv*3000);
-812:		pwrcal_writel(clk->status, pdiv*3000);
-813:	pwrcal_writel(clk->offset, pll_con0);
-814:	pwrcal_writel(clk->offset + 1, pll_con1);
-816:	if (pll_con0 & (1 << PLL1431X_ENABLE)) {
-818:			if (pwrcal_getbit(clk->offset, PLL1431X_LOCKED))
-822:			cpu_relax();
-829:static int _clk_pll1431x_set_rate(struct pwrcal_clk *clk,
-830:					unsigned long long rate)
-832:	struct pwrcal_pll *pll = to_pll(clk);
-833:	struct pwrcal_pll_rate_table  tmp_rate_table;
-834:	const struct pwrcal_pll_rate_table  *rate_table;
-835:	struct pll_spec *pll_spec;
-837:	if (rate == 0) {
-838:		if (_clk_pll1431x_is_enabled(clk) != 0)
-839:			if (_clk_pll1431x_disable(clk))
-844:	rate_table = _clk_get_pll_settings(pll, rate);
-845:	if (rate_table == NULL) {
-846:		pll_spec = clk_pll_get_spec(clk);
-847:		if (pll_spec == NULL)
-850:		if (_clk_pll1431x_find_pms(pll_spec, &tmp_rate_table, rate) < 0) {
-851:			pr_err("can't find pms value for rate(%lldHz) of %s",
-852:				rate,
-857:		rate_table = &tmp_rate_table;
-858:		pr_warn("not exist in rate table, p(%d) m(%d) s(%d) k(%d) fout(%lld Hz) of %s",
-859:				rate_table->pdiv,
-860:				rate_table->mdiv,
-861:				rate_table->sdiv,
-862:				rate_table->kdiv,
-863:				rate,
-867:	if (_clk_pll1431x_set_pms(clk, rate_table))
-870:	if (rate != 0) {
-871:		if (_clk_pll1431x_is_enabled(clk) == 0)
-872:			_clk_pll1431x_enable(clk);
-881:static unsigned long long _clk_pll1431x_get_rate(struct pwrcal_clk *clk)
-883:	unsigned int mdiv, pdiv, sdiv, pll_con0, pll_con1;
-884:	signed short kdiv;
-887:	if (_clk_pll1431x_is_enabled(clk) == 0)
-890:	pll_con0 = pwrcal_readl(clk->offset);
-891:	pll_con1 = pwrcal_readl(clk->offset + 1);
-892:	mdiv = (pll_con0 >> PLL1431X_MDIV_SHIFT) & PLL1431X_MDIV_MASK;
-893:	pdiv = (pll_con0 >> PLL1431X_PDIV_SHIFT) & PLL1431X_PDIV_MASK;
-894:	sdiv = (pll_con0 >> PLL1431X_SDIV_SHIFT) & PLL1431X_SDIV_MASK;
-896:	kdiv = (short)(pll_con1 >> PLL1431X_K_SHIFT) & PLL1431X_K_MASK;
-898:	if (pdiv == 0) {
-899:		pr_err("pdiv is 0, id(%s)", clk->name);
-903:	fout = FIN_HZ_26M * ((mdiv << 16) + kdiv);
-904:	do_div(fout, (pdiv << sdiv));
-910:struct pwrcal_pll_ops pll141xx_ops = {
-911:	.is_enabled = _clk_pll141xx_is_enabled,
-912:	.enable = _clk_pll141xx_enable,
-913:	.disable = _clk_pll141xx_disable,
-914:	.set_rate = _clk_pll141xx_set_rate,
-915:	.get_rate = _clk_pll141xx_get_rate,
-918:struct pwrcal_pll_ops pll141xx_mfc_ops = {
-919:	.is_enabled = _clk_pll141xx_mfc_is_enabled,
-920:	.enable = _clk_pll141xx_mfc_enable,
-921:	.disable = _clk_pll141xx_mfc_disable,
-922:	.set_rate = _clk_pll141xx_mfc_set_rate,
-923:	.get_rate = _clk_pll141xx_mfc_get_rate,
-926:struct pwrcal_pll_ops pll1419x_ops = {
-927:	.is_enabled = _clk_pll141xx_is_enabled,
-928:	.enable = _clk_pll1419x_enable,
-929:	.disable = _clk_pll141xx_disable,
-930:	.set_rate = _clk_pll1419x_set_rate,
-931:	.get_rate = _clk_pll1419x_get_rate,
-934:struct pwrcal_pll_ops pll1431x_ops = {
-935:	.is_enabled = _clk_pll1431x_is_enabled,
-936:	.enable = _clk_pll1431x_enable,
-937:	.disable = _clk_pll1431x_disable,
-938:	.set_rate = _clk_pll1431x_set_rate,
-939:	.get_rate = _clk_pll1431x_get_rate,
+/*
+	PLLs
+*/
+/* PLL141XX Clock Type */
+#define PLL141XX_MDIV_SHIFT		16
+#define PLL141XX_PDIV_SHIFT		8
+#define PLL141XX_SDIV_SHIFT		0
+#define PLL141XX_MDIV_MASK		0x3FF
+#define PLL141XX_PDIV_MASK		0x3F
+#define PLL141XX_SDIV_MASK		0x7
+#define PLL141XX_ENABLE			31
+#define PLL141XX_LOCKED			29
+#define PLL141XX_BYPASS			22
 
-========================================
-=== S5E8890 VCLK ===
-========================================
-34:	{CLK(MFC_DIV_PCLK_MFC_150),	3,	-1},
-39:	{CLK(MSCL_MUX_ACLK_MSCL0_528_USER),	1,	0},
-40:	{CLK(MSCL_MUX_ACLK_MSCL1_528_USER),	0,	0},
-41:	{CLK(MSCL_MUX_ACLK_MSCL1_528),	0,	-1},
-42:	{CLK(MSCL_DIV_PCLK_MSCL),	3,	-1},
-43:	{CLK(TOP_MUXGATE_ACLK_MSCL0_528),	1,	0},
-44:	{CLK(TOP_MUXGATE_ACLK_MSCL1_528),	0,	0},
-63:	{CLK(FSYS1_DIV_PCLK_COMBO_PHY_WIFI),	1,	-1},
-71:	{CLK(DISP0_DIV_PCLK_DISP0_0_133),	2,	-1},
-73:	{CLK(DISP0_DIV_PHYCLK_HDMIPHY_TMDS_20B_CLKO),	1,	-1},
-74:	{CLK(DISP0_DIV_PHYCLK_HDMIPHY_PIXEL_CLKO),	1,	-1},
-83:	{CLK(DISP1_DIV_PCLK_DISP1_0_133),	3,	-1},
-90:	{CLK(AUD_DIV_AUD_CA5),			0,	-1},
-91:	{CLK(AUD_DIV_AUD_CDCLK),		1,	-1},
-92:	{CLK(AUD_DIV_ACLK_AUD),		2,	-1},
-93:	{CLK(AUD_DIV_PCLK_DBG),		5,	-1},
-94:	{CLK(AUD_DIV_ATCLK_AUD),		1,	-1},
-99:	{CLK(AUD_DIV_CP_CA5),			0,	-1},
-100:	{CLK(AUD_DIV_CP_CDCLK),		0,	-1},
-107:	{CLK(ISP0_DIV_PCLK_ISP0),		1,	-1},
-113:	{CLK(ISP0_DIV_PCLK_ISP0_TPU),		1,	-1},
-119:	{CLK(ISP0_DIV_PCLK_ISP0_TREX_264),	1,	-1},
-120:	{CLK(ISP0_DIV_PCLK_ISP0_TREX_132),	3,	-1},
-131:	{CLK(ISP1_DIV_PCLK_ISP1_234),		1,	-1},
-137:	{CLK(CAM0_DIV_PCLK_CAM0_CSIS0_207),	1,	-1},
-158:	{CLK(CAM0_DIV_PCLK_CAM0_3AA0_207),	1,	-1},
-164:	{CLK(CAM0_DIV_PCLK_CAM0_3AA1_207),	1,	-1},
-170:	{CLK(CAM0_DIV_PCLK_CAM0_TREX_264),	1,	-1},
-171:	{CLK(CAM0_DIV_PCLK_CAM0_TREX_132),	3,	-1},
-177:	{CLK(CAM1_DIV_PCLK_CAM1_ARM_168),	3,	-1},
-183:	{CLK(CAM1_DIV_PCLK_CAM1_TREX_VRA_264),		1,	-1},
-194:	{CLK(CAM1_DIV_PCLK_CAM1_BUS_132),	1,	-1},
-266:M1D1G1(sclk_decon0_eclk0,	0,	TOP_MUX_SCLK_DISP0_DECON0_ECLK0,	TOP_DIV_SCLK_DISP0_DECON0_ECLK0,	TOP_GATE_SCLK_DISP0_DECON0_ECLK0,	DISP0_MUX_SCLK_DISP0_DECON0_ECLK0_USER);
-267:M1D1G1(sclk_decon0_vclk0,	0,	TOP_MUX_SCLK_DISP0_DECON0_VCLK0,	TOP_DIV_SCLK_DISP0_DECON0_VCLK0,	TOP_GATE_SCLK_DISP0_DECON0_VCLK0,	DISP0_MUX_SCLK_DISP0_DECON0_VCLK0_USER);
-268:M1D1G1(sclk_decon0_vclk1,	0,	TOP_MUX_SCLK_DISP0_DECON0_VCLK1,	TOP_DIV_SCLK_DISP0_DECON0_VCLK1,	TOP_GATE_SCLK_DISP0_DECON0_VCLK1,	DISP0_MUX_SCLK_DISP0_DECON0_VCLK1_USER);
-269:M1D1G1(sclk_hdmi_audio,	0,	TOP_MUX_SCLK_DISP0_HDMI_AUDIO,	TOP_DIV_SCLK_DISP0_HDMI_AUDIO,	TOP_GATE_SCLK_DISP0_HDMI_AUDIO,	DISP0_MUX_SCLK_DISP0_HDMI_AUDIO_USER);
-270:M1D1G1(sclk_decon1_eclk0,	0,	TOP_MUX_SCLK_DISP1_DECON1_ECLK0,	TOP_DIV_SCLK_DISP1_DECON1_ECLK0,	TOP_GATE_SCLK_DISP1_DECON1_ECLK0,	DISP1_MUX_SCLK_DISP1_DECON1_ECLK0_USER);
-271:M1D1G1(sclk_decon1_eclk1,	0,	TOP_MUX_SCLK_DISP1_DECON1_ECLK1,	TOP_DIV_SCLK_DISP1_DECON1_ECLK1,	TOP_GATE_SCLK_DISP1_DECON1_ECLK1,	DISP1_MUX_SCLK_DISP1_DECON1_ECLK1_USER);
-272:M1D1G1(sclk_usbdrd30,	0,	TOP_MUX_SCLK_FSYS0_USBDRD30,	TOP_DIV_SCLK_FSYS0_USBDRD30,	TOP_GATE_SCLK_FSYS0_USBDRD30,	FSYS0_MUX_SCLK_FSYS0_USBDRD30_USER);
-273:M1D1G1(sclk_mmc0,	0,	TOP_MUX_SCLK_FSYS0_MMC0,	TOP_DIV_SCLK_FSYS0_MMC0,	TOP_GATE_SCLK_FSYS0_MMC0,	FSYS0_MUX_SCLK_FSYS0_MMC0_USER);
-274:M1D1G1(sclk_ufsunipro20,	0,	TOP_MUX_SCLK_FSYS0_UFSUNIPRO20,	TOP_DIV_SCLK_FSYS0_UFSUNIPRO20,	TOP_GATE_SCLK_FSYS0_UFSUNIPRO20,	FSYS0_MUX_SCLK_FSYS0_UFSUNIPRO_EMBEDDED_USER);
-275:M1D1G1(sclk_phy24m,	0,	TOP_MUX_SCLK_FSYS0_PHY_24M,	TOP_DIV_SCLK_FSYS0_PHY_24M,	TOP_GATE_SCLK_FSYS0_PHY_24M,	FSYS0_MUX_SCLK_FSYS0_24M_USER);
-276:M1D1G1(sclk_ufsunipro_cfg,	0,	TOP_MUX_SCLK_FSYS0_UFSUNIPRO_CFG,	TOP_DIV_SCLK_FSYS0_UFSUNIPRO_CFG,	TOP_GATE_SCLK_FSYS0_UFSUNIPRO_CFG,	FSYS0_MUX_SCLK_FSYS0_UFSUNIPRO_EMBEDDED_CFG_USER);
-277:M1D1G1(sclk_mmc2,	0,	TOP_MUX_SCLK_FSYS1_MMC2,	TOP_DIV_SCLK_FSYS1_MMC2,	TOP_GATE_SCLK_FSYS1_MMC2,	FSYS1_MUX_SCLK_FSYS1_MMC2_USER);
-278:M1D1G1(sclk_ufsunipro20_sdcard,	0,	TOP_MUX_SCLK_FSYS1_UFSUNIPRO20,	TOP_DIV_SCLK_FSYS1_UFSUNIPRO20,	TOP_GATE_SCLK_FSYS1_UFSUNIPRO20,	FSYS1_MUX_SCLK_FSYS1_UFSUNIPRO_SDCARD_USER);
-279:M1D1G1(sclk_pcie_phy,	0,	TOP_MUX_SCLK_FSYS1_PCIE_PHY,	TOP_DIV_SCLK_FSYS1_PCIE_PHY,	TOP_GATE_SCLK_FSYS1_PCIE_PHY,	FSYS1_MUX_SCLK_FSYS1_PCIE_PHY_USER);
-280:M1D1G1(sclk_ufsunipro_sdcard_cfg,	0,	TOP_MUX_SCLK_FSYS1_UFSUNIPRO_CFG,	TOP_DIV_SCLK_FSYS1_UFSUNIPRO_CFG,	TOP_GATE_SCLK_FSYS1_UFSUNIPRO_CFG,	FSYS1_MUX_SCLK_FSYS1_UFSUNIPRO_SDCARD_CFG_USER);
-281:M1D1G1(sclk_uart0,	0,	TOP_MUX_SCLK_PERIC0_UART0,	TOP_DIV_SCLK_PERIC0_UART0,	TOP_GATE_SCLK_PERIC0_UART0,	PERIC0_MUX_SCLK_UART0_USER);
-282:M1D1G1(sclk_spi0,	gate_peric1_spi_i2s_pcm1_spdif_common,	TOP_MUX_SCLK_PERIC1_SPI0,	TOP_DIV_SCLK_PERIC1_SPI0,	TOP_GATE_SCLK_PERIC1_SPI0,	PERIC1_MUX_SCLK_SPI0_USER);
-283:M1D1G1(sclk_spi1,	gate_peric1_spi_i2s_pcm1_spdif_common,	TOP_MUX_SCLK_PERIC1_SPI1,	TOP_DIV_SCLK_PERIC1_SPI1,	TOP_GATE_SCLK_PERIC1_SPI1,	PERIC1_MUX_SCLK_SPI1_USER);
-284:M1D1G1(sclk_spi2,	gate_peric1_spi_i2s_pcm1_spdif_common,	TOP_MUX_SCLK_PERIC1_SPI2,	TOP_DIV_SCLK_PERIC1_SPI2,	TOP_GATE_SCLK_PERIC1_SPI2,	PERIC1_MUX_SCLK_SPI2_USER);
-285:M1D1G1(sclk_spi3,	gate_peric1_spi_i2s_pcm1_spdif_common,	TOP_MUX_SCLK_PERIC1_SPI3,	TOP_DIV_SCLK_PERIC1_SPI3,	TOP_GATE_SCLK_PERIC1_SPI3,	PERIC1_MUX_SCLK_SPI3_USER);
-286:M1D1G1(sclk_spi4,	gate_peric1_spi_i2s_pcm1_spdif_common,	TOP_MUX_SCLK_PERIC1_SPI4,	TOP_DIV_SCLK_PERIC1_SPI4,	TOP_GATE_SCLK_PERIC1_SPI4,	PERIC1_MUX_SCLK_SPI4_USER);
-287:M1D1G1(sclk_spi5,	gate_peric1_spi_i2s_pcm1_spdif_common,	TOP_MUX_SCLK_PERIC1_SPI5,	TOP_DIV_SCLK_PERIC1_SPI5,	TOP_GATE_SCLK_PERIC1_SPI5,	PERIC1_MUX_SCLK_SPI5_USER);
-288:M1D1G1(sclk_spi6,	gate_peric1_spi_i2s_pcm1_spdif_common,	TOP_MUX_SCLK_PERIC1_SPI6,	TOP_DIV_SCLK_PERIC1_SPI6,	TOP_GATE_SCLK_PERIC1_SPI6,	PERIC1_MUX_SCLK_SPI6_USER);
-289:M1D1G1(sclk_spi7,	gate_peric1_spi_i2s_pcm1_spdif_common,	TOP_MUX_SCLK_PERIC1_SPI7,	TOP_DIV_SCLK_PERIC1_SPI7,	TOP_GATE_SCLK_PERIC1_SPI7,	PERIC1_MUX_SCLK_SPI7_USER);
-290:M1D1G1(sclk_uart1,	0,	TOP_MUX_SCLK_PERIC1_UART1,	TOP_DIV_SCLK_PERIC1_UART1,	TOP_GATE_SCLK_PERIC1_UART1,	PERIC1_MUX_SCLK_UART1_USER);
-291:M1D1G1(sclk_uart2,	0,	TOP_MUX_SCLK_PERIC1_UART2,	TOP_DIV_SCLK_PERIC1_UART2,	TOP_GATE_SCLK_PERIC1_UART2,	PERIC1_MUX_SCLK_UART2_USER);
-292:M1D1G1(sclk_uart3,	0,	TOP_MUX_SCLK_PERIC1_UART3,	TOP_DIV_SCLK_PERIC1_UART3,	TOP_GATE_SCLK_PERIC1_UART3,	PERIC1_MUX_SCLK_UART3_USER);
-293:M1D1G1(sclk_uart4,	0,	TOP_MUX_SCLK_PERIC1_UART4,	TOP_DIV_SCLK_PERIC1_UART4,	TOP_GATE_SCLK_PERIC1_UART4,	PERIC1_MUX_SCLK_UART4_USER);
-294:M1D1G1(sclk_uart5,	0,	TOP_MUX_SCLK_PERIC1_UART5,	TOP_DIV_SCLK_PERIC1_UART5,	TOP_GATE_SCLK_PERIC1_UART5,	PERIC1_MUX_SCLK_UART5_USER);
-295:M1D1G1(sclk_promise_int,	0,	TOP_MUX_SCLK_PROMISE_INT,	TOP_DIV_SCLK_PROMISE_INT,	TOP_GATE_SCLK_PROMISE_INT,	0);
-296:M1D1G1(sclk_promise_disp,	0,	TOP_MUX_SCLK_PROMISE_DISP,	TOP_DIV_SCLK_PROMISE_DISP,	TOP_GATE_SCLK_PROMISE_DISP,	0);
-297:M1D1G1(sclk_ap2cp_mif_pll_out,	0,	TOP_MUX_SCLK_AP2CP_MIF_PLL_OUT,	TOP_DIV_SCLK_AP2CP_MIF_PLL_OUT,	TOP_GATE_SCLK_AP2CP_MIF_PLL_OUT,	0);
-298:M1D1G1(sclk_isp_spi0,	gate_cam1_common,	TOP_MUX_SCLK_CAM1_ISP_SPI0,	TOP_DIV_SCLK_CAM1_ISP_SPI0,	TOP_GATE_SCLK_CAM1_ISP_SPI0,	CAM1_MUX_SCLK_CAM1_ISP_SPI0_USER);
-299:M1D1G1(sclk_isp_spi1,	gate_cam1_common,	TOP_MUX_SCLK_CAM1_ISP_SPI1,	TOP_DIV_SCLK_CAM1_ISP_SPI1,	TOP_GATE_SCLK_CAM1_ISP_SPI1,	CAM1_MUX_SCLK_CAM1_ISP_SPI1_USER);
-300:M1D1G1(sclk_isp_uart,	0,	TOP_MUX_SCLK_CAM1_ISP_UART,	TOP_DIV_SCLK_CAM1_ISP_UART,	TOP_GATE_SCLK_CAM1_ISP_UART,	CAM1_MUX_SCLK_CAM1_ISP_UART_USER);
-301:M1D1G1(sclk_isp_sensor0,	0,	TOP_MUX_SCLK_ISP_SENSOR0,	TOP_DIV_SCLK_ISP_SENSOR0,	TOP_GATE_SCLK_ISP_SENSOR0,	0);
-302:M1D1G1(sclk_isp_sensor1,	0,	TOP_MUX_SCLK_ISP_SENSOR1,	TOP_DIV_SCLK_ISP_SENSOR1,	TOP_GATE_SCLK_ISP_SENSOR1,	0);
-303:M1D1G1(sclk_isp_sensor2,	0,	TOP_MUX_SCLK_ISP_SENSOR2,	TOP_DIV_SCLK_ISP_SENSOR2,	TOP_GATE_SCLK_ISP_SENSOR2,	0);
-304:M1D1G1(sclk_isp_sensor3,	0,	TOP_MUX_SCLK_ISP_SENSOR3,	TOP_DIV_SCLK_ISP_SENSOR3,	TOP_GATE_SCLK_ISP_SENSOR3,	0);
-305:M1D1G1(sclk_decon0_eclk0_local,	0,	DISP0_MUX_SCLK_DISP0_DECON0_ECLK0,	DISP0_DIV_SCLK_DECON0_ECLK0,	0,	0);
-306:M1D1G1(sclk_decon0_vclk0_local,	0,	DISP0_MUX_SCLK_DISP0_DECON0_VCLK0,	DISP0_DIV_SCLK_DECON0_VCLK0,	0,	0);
-307:M1D1G1(sclk_decon0_vclk1_local,	0,	DISP0_MUX_SCLK_DISP0_DECON0_VCLK1,	DISP0_DIV_SCLK_DECON0_VCLK1,	0,	0);
-308:M1D1G1(sclk_decon1_eclk0_local,	0,	DISP1_MUX_SCLK_DISP1_DECON1_ECLK0,	DISP1_DIV_SCLK_DECON1_ECLK0,	0,	0);
-309:M1D1G1(sclk_decon1_eclk1_local,	0,	DISP1_MUX_SCLK_DISP1_DECON1_ECLK1,	DISP1_DIV_SCLK_DECON1_ECLK1,	0,	0);
-311:P1(p1_disp_pll,	0,	DISP_PLL);
-312:P1(p1_aud_pll,	0,	AUD_PLL);
-313:P1(p1_mfc_pll,	0,	MFC_PLL_GATE);
-314:P1(p1_bus3_pll,	0,	BUS3_PLL);
-316:D1(d1_sclk_i2s_local,	pxmxdx_aud,	AUD_DIV_SCLK_I2S);
-317:D1(d1_sclk_pcm_local,	pxmxdx_aud,	AUD_DIV_SCLK_PCM);
-318:D1(d1_sclk_slimbus,	pxmxdx_aud,	AUD_DIV_SCLK_SLIMBUS);
-319:D1(d1_sclk_cp_i2s,	pxmxdx_aud,	AUD_DIV_SCLK_CP_I2S);
-320:D1(d1_sclk_asrc,	pxmxdx_aud,	AUD_DIV_SCLK_ASRC);
-339:UMUX(umux_disp0_phyclk_mipidphy0_bitclkdiv2_user,	0,	DISP0_MUX_PHYCLK_MIPIDPHY0_BITCLKDIV2_USER);
-340:UMUX(umux_disp0_phyclk_mipidphy0_bitclkdiv8_user,	0,	DISP0_MUX_PHYCLK_MIPIDPHY0_BITCLKDIV8_USER);
-342:UMUX(umux_disp0_phyclk_mipidphy1_bitclkdiv2_user,	0,	DISP0_MUX_PHYCLK_MIPIDPHY1_BITCLKDIV2_USER);
-343:UMUX(umux_disp0_phyclk_mipidphy1_bitclkdiv8_user,	0,	DISP0_MUX_PHYCLK_MIPIDPHY1_BITCLKDIV8_USER);
-345:UMUX(umux_disp0_phyclk_mipidphy2_bitclkdiv2_user,	0,	DISP0_MUX_PHYCLK_MIPIDPHY2_BITCLKDIV2_USER);
-346:UMUX(umux_disp0_phyclk_mipidphy2_bitclkdiv8_user,	0,	DISP0_MUX_PHYCLK_MIPIDPHY2_BITCLKDIV8_USER);
-351:UMUX(umux_disp1_phyclk_mipidphy0_bitclkdiv2_user,	0,	DISP1_MUX_PHYCLK_MIPIDPHY0_BITCLKDIV2_USER);
-352:UMUX(umux_disp1_phyclk_mipidphy1_bitclkdiv2_user,	0,	DISP1_MUX_PHYCLK_MIPIDPHY1_BITCLKDIV2_USER);
-353:UMUX(umux_disp1_phyclk_mipidphy2_bitclkdiv2_user,	0,	DISP1_MUX_PHYCLK_MIPIDPHY2_BITCLKDIV2_USER);
-421:	CLK(AUD_DIV_ACLK_AUD),
-429:	CLK(AUD_DIV_ACLK_AUD),
-433:	CLK(AUD_DIV_ACLK_AUD),
-437:	CLK(AUD_DIV_ACLK_AUD),
-553:	CLK(CAM1_GATE_ACLK_SMMU_ISPCPU),
-557:	CLK(CAM1_GATE_PCLK_SMMU_ISPCPU),
-565:static struct pwrcal_clk *gategrp_cam1_isp_cpu_gic_common[] = {
-570:static struct pwrcal_clk *gategrp_cam1_isp_cpu[] = {
-736:	CLK(DISP0_DIV_PHYCLK_HDMIPHY_TMDS_20B_CLKO),
-744:	CLK(DISP0_DIV_PHYCLK_HDMIPHY_PIXEL_CLKO),
-751:static struct pwrcal_clk *gategrp_disp0_phyclk_mipidphy0_bitclkdiv8[] = {
-752:	CLK(DISP0_MUX_PHYCLK_MIPIDPHY0_BITCLKDIV8_USER),
-759:static struct pwrcal_clk *gategrp_disp0_phyclk_mipidphy1_bitclkdiv8[] = {
-760:	CLK(DISP0_MUX_PHYCLK_MIPIDPHY1_BITCLKDIV8_USER),
-767:static struct pwrcal_clk *gategrp_disp0_phyclk_mipidphy2_bitclkdiv8[] = {
-768:	CLK(DISP0_MUX_PHYCLK_MIPIDPHY2_BITCLKDIV8_USER),
-1035:	CLK(G3D_DIV_ACLK_G3D),
-1039:	CLK(G3D_DIV_ACLK_G3D),
-1154:	CLK(MSCL_MUX_ACLK_MSCL0_528_USER),
-1157:static struct pwrcal_clk *gategrp_mscl_mscl0_jpeg_common[] = {
-1158:	CLK(MSCL_MUX_ACLK_MSCL0_528_USER),
-1161:static struct pwrcal_clk *gategrp_mscl_mscl0[] = {
-1162:	CLK(MSCL_MUX_ACLK_MSCL0_528_USER),
-1166:	CLK(MSCL_MUX_ACLK_MSCL0_528_USER),
-1169:static struct pwrcal_clk *gategrp_mscl_mscl1_g2d_common[] = {
-1170:	CLK(MSCL_MUX_ACLK_MSCL0_528_USER),
-1173:static struct pwrcal_clk *gategrp_mscl_mscl1[] = {
-1174:	CLK(MSCL_MUX_ACLK_MSCL0_528_USER),
-1178:	CLK(MSCL_MUX_ACLK_MSCL0_528_USER),
-1182:	CLK(MSCL_MUX_ACLK_MSCL0_528_USER),
-1186:	CLK(MSCL_MUX_ACLK_MSCL0_528_USER),
-1190:	CLK(MSCL_MUX_ACLK_MSCL0_528_USER),
-1448:GRPGATE(gate_cam1_isp_cpu_gic_common,	gate_cam1_common,	gategrp_cam1_isp_cpu_gic_common);
-1449:GRPGATE(gate_cam1_isp_cpu,	gate_cam1_isp_cpu_gic_common,	gategrp_cam1_isp_cpu);
-1450:GRPGATE(gate_cam1_gic_is,	gate_cam1_isp_cpu_gic_common,	gategrp_cam1_gic_is);
-1492:GRPGATE(gate_disp0_phyclk_mipidphy0_bitclkdiv8,	umux_disp0_phyclk_mipidphy0_bitclkdiv8_user,	gategrp_disp0_phyclk_mipidphy0_bitclkdiv8);
-1494:GRPGATE(gate_disp0_phyclk_mipidphy1_bitclkdiv8,	umux_disp0_phyclk_mipidphy1_bitclkdiv8_user,	gategrp_disp0_phyclk_mipidphy1_bitclkdiv8);
-1496:GRPGATE(gate_disp0_phyclk_mipidphy2_bitclkdiv8,	umux_disp0_phyclk_mipidphy2_bitclkdiv8_user,	gategrp_disp0_phyclk_mipidphy2_bitclkdiv8);
-1590:GRPGATE(gate_mscl_mscl0_jpeg_common,	gate_mscl_common,	gategrp_mscl_mscl0_jpeg_common);
-1591:GRPGATE(gate_mscl_mscl0,	gate_mscl_mscl0_jpeg_common,	gategrp_mscl_mscl0);
-1592:GRPGATE(gate_mscl_jpeg,	gate_mscl_mscl0_jpeg_common,	gategrp_mscl_jpeg);
-1593:GRPGATE(gate_mscl_mscl1_g2d_common,	gate_mscl_common,	gategrp_mscl_mscl1_g2d_common);
-1594:GRPGATE(gate_mscl_mscl1,	gate_mscl_mscl1_g2d_common,	gategrp_mscl_mscl1);
-1595:GRPGATE(gate_mscl_g2d,	gate_mscl_mscl1_g2d_common,	gategrp_mscl_g2d);
-1685:	vclk_disable(VCLK(gate_cam1_isp_cpu));
-1722:	vclk_disable(VCLK(gate_disp0_phyclk_mipidphy0_bitclkdiv8));
-1724:	vclk_disable(VCLK(gate_disp0_phyclk_mipidphy1_bitclkdiv8));
-1726:	vclk_disable(VCLK(gate_disp0_phyclk_mipidphy2_bitclkdiv8));
-1778:	vclk_disable(VCLK(gate_mscl_mscl0));
-1780:	vclk_disable(VCLK(gate_mscl_mscl1));
-1861:	vclk_disable(VCLK(p1_disp_pll));
-1862:	vclk_disable(VCLK(p1_aud_pll));
-1914:	vclk_disable(VCLK(sclk_ap2cp_mif_pll_out));
-1915:	vclk_disable(VCLK(p1_mfc_pll));
-1961:	ADD_LIST(vclk_grpgate_list, gate_cam1_isp_cpu_gic_common);
-1962:	ADD_LIST(vclk_grpgate_list, gate_cam1_isp_cpu);
-2005:	ADD_LIST(vclk_grpgate_list, gate_disp0_phyclk_mipidphy0_bitclkdiv8);
-2007:	ADD_LIST(vclk_grpgate_list, gate_disp0_phyclk_mipidphy1_bitclkdiv8);
-2009:	ADD_LIST(vclk_grpgate_list, gate_disp0_phyclk_mipidphy2_bitclkdiv8);
-2103:	ADD_LIST(vclk_grpgate_list, gate_mscl_mscl0_jpeg_common);
-2104:	ADD_LIST(vclk_grpgate_list, gate_mscl_mscl0);
-2106:	ADD_LIST(vclk_grpgate_list, gate_mscl_mscl1_g2d_common);
-2107:	ADD_LIST(vclk_grpgate_list, gate_mscl_mscl1);
-2197:	ADD_LIST(vclk_m1d1g1_list, sclk_ap2cp_mif_pll_out);
-2211:	ADD_LIST(vclk_p1_list, p1_disp_pll);
-2212:	ADD_LIST(vclk_p1_list, p1_aud_pll);
-2213:	ADD_LIST(vclk_p1_list, p1_mfc_pll);
-2214:	ADD_LIST(vclk_p1_list, p1_bus3_pll);
-2273:	ADD_LIST(vclk_umux_list, umux_disp0_phyclk_mipidphy0_bitclkdiv2_user);
-2274:	ADD_LIST(vclk_umux_list, umux_disp0_phyclk_mipidphy0_bitclkdiv8_user);
-2276:	ADD_LIST(vclk_umux_list, umux_disp0_phyclk_mipidphy1_bitclkdiv2_user);
-2277:	ADD_LIST(vclk_umux_list, umux_disp0_phyclk_mipidphy1_bitclkdiv8_user);
-2279:	ADD_LIST(vclk_umux_list, umux_disp0_phyclk_mipidphy2_bitclkdiv2_user);
-2280:	ADD_LIST(vclk_umux_list, umux_disp0_phyclk_mipidphy2_bitclkdiv8_user);
-2285:	ADD_LIST(vclk_umux_list, umux_disp1_phyclk_mipidphy0_bitclkdiv2_user);
-2286:	ADD_LIST(vclk_umux_list, umux_disp1_phyclk_mipidphy1_bitclkdiv2_user);
-2287:	ADD_LIST(vclk_umux_list, umux_disp1_phyclk_mipidphy2_bitclkdiv2_user);
-2321:	/* This code is for reference count sync. Initial state of BUS3_PLL is enabled. */
-2322:	vclk_enable(VCLK(p1_bus3_pll));
-2323:	vclk_enable(VCLK(p1_bus3_pll));
+/* PLL1431X Clock Type */
+#define PLL1431X_MDIV_SHIFT		16
+#define PLL1431X_PDIV_SHIFT		8
+#define PLL1431X_SDIV_SHIFT		0
+#define PLL1431X_K_SHIFT		0
+#define PLL1431X_MDIV_MASK		0x3FF
+#define PLL1431X_PDIV_MASK		0x3F
+#define PLL1431X_SDIV_MASK		0x7
+#define PLL1431X_K_MASK		0xFFFF
+#define PLL1431X_ENABLE			31
+#define PLL1431X_LOCKED			29
+#define PLL1431X_BYPASS			4
+
+#define FIN_HZ_26M		(26*MHZ)
+
+static int mfc_pll_refcount[2] = {1, 1};
+
+static const struct pwrcal_pll_rate_table *_clk_get_pll_settings(
+					struct pwrcal_pll *pll_clk,
+					unsigned long long rate)
+{
+	int i;
+	const struct pwrcal_pll_rate_table  *prate_table = pll_clk->rate_table;
+
+	for (i = 0; i < pll_clk->rate_count; i++) {
+		if (rate == prate_table[i].rate)
+			return &prate_table[i];
+	}
+
+	return NULL;
+}
+
+static int _clk_pll141xx_find_pms(struct pll_spec *pll_spec,
+				struct pwrcal_pll_rate_table *rate_table,
+				unsigned long long rate)
+{
+	unsigned int p, m, s;
+	unsigned long long fref, fvco, fout;
+	unsigned long long tmprate, tmpfout;
+	unsigned long long mindiffrate = 0xFFFFFFFFFFFFFFFF;
+	unsigned int min_p, min_m, min_s, min_fout;
+
+	for (p = pll_spec->pdiv_min; p <= pll_spec->pdiv_max; p++) {
+		fref = FIN_HZ_26M / p;
+		if ((fref < pll_spec->fref_min) || (fref > pll_spec->fref_max))
+			continue;
+
+		for (s = pll_spec->sdiv_min; s <= pll_spec->sdiv_max; s++) {
+			tmprate = rate;
+			do_div(tmprate, KHZ);
+			tmprate = tmprate * p * (1 << s);
+			do_div(tmprate, (FIN_HZ_26M / KHZ));
+			m = (unsigned int)tmprate;
+
+			if ((m < pll_spec->mdiv_min)
+					|| (m > pll_spec->mdiv_max))
+				continue;
+
+			fvco = ((unsigned long long)FIN_HZ_26M) * m;
+			do_div(fvco, p);
+			if ((fvco < pll_spec->fvco_min)
+					|| (fvco > pll_spec->fvco_max))
+				continue;
+
+			fout = fvco >> s;
+			if ((fout >= pll_spec->fout_min)
+					&& (fout <= pll_spec->fout_max)) {
+				tmprate = rate;
+				do_div(tmprate, KHZ);
+				tmpfout = fout;
+				do_div(tmpfout, KHZ);
+				if (tmprate == tmpfout) {
+					rate_table->rate = fout;
+					rate_table->pdiv = p;
+					rate_table->mdiv = m;
+					rate_table->sdiv = s;
+					rate_table->kdiv = 0;
+					return 0;
+				}
+				if (tmpfout < tmprate && mindiffrate > tmprate - tmpfout) {
+					mindiffrate = tmprate - tmpfout;
+					min_fout = fout;
+					min_p = p;
+					min_m = m;
+					min_s = s;
+				}
+			}
+		}
+	}
+
+	if (mindiffrate != 0xFFFFFFFFFFFFFFFF) {
+		rate_table->rate = min_fout;
+		rate_table->pdiv = min_p;
+		rate_table->mdiv = min_m;
+		rate_table->sdiv = min_s;
+		rate_table->kdiv = 0;
+		return 0;
+	}
+	return -1;
+}
+
+
+static int _clk_pll1419x_find_pms(struct pll_spec *pll_spec,
+				struct pwrcal_pll_rate_table *rate_table,
+				unsigned long long rate)
+{
+	unsigned int p, m, s;
+	unsigned long long fref, fvco, fout;
+	unsigned long long tmprate, tmpfout;
+	unsigned long long mindiffrate = 0xFFFFFFFFFFFFFFFF;
+	unsigned int min_p, min_m, min_s, min_fout;
+
+	for (p = pll_spec->pdiv_min; p <= pll_spec->pdiv_max; p++) {
+		fref = FIN_HZ_26M / p;
+		if ((fref < pll_spec->fref_min) || (fref > pll_spec->fref_max))
+			continue;
+
+		for (s = pll_spec->sdiv_min; s <= pll_spec->sdiv_max; s++) {
+			/*tmprate = rate;*/
+			tmprate = rate/2; /*for PLL1419*/
+			do_div(tmprate, KHZ);
+			tmprate = tmprate * p * (1 << s);
+			do_div(tmprate, (FIN_HZ_26M / KHZ));
+			m = (unsigned int)tmprate;
+
+			if ((m < pll_spec->mdiv_min)
+					|| (m > pll_spec->mdiv_max))
+				continue;
+
+			fvco = ((unsigned long long)FIN_HZ_26M) * m;
+			do_div(fvco, p);
+			if ((fvco < pll_spec->fvco_min)
+					|| (fvco > pll_spec->fvco_max))
+				continue;
+
+			fout = fvco >> s;
+			tmpfout = 0;
+			if ((fout >= pll_spec->fout_min)
+					&& (fout <= pll_spec->fout_max)) {
+				tmprate = rate;
+				do_div(tmprate, KHZ);
+				tmpfout = fout;
+				do_div(tmpfout, KHZ);
+				if (tmprate == tmpfout) {
+					rate_table->rate = fout;
+					rate_table->pdiv = p;
+					rate_table->mdiv = m;
+					rate_table->sdiv = s;
+					rate_table->kdiv = 0;
+					return 0;
+				}
+			}
+			if (tmpfout && tmpfout < tmprate && mindiffrate > tmprate - tmpfout) {
+				mindiffrate = tmprate - tmpfout;
+				min_fout = fout;
+				min_p = p;
+				min_m = m;
+				min_s = s;
+			}
+		}
+	}
+
+	if (mindiffrate != 0xFFFFFFFFFFFFFFFF) {
+		rate_table->rate = min_fout;
+		rate_table->pdiv = min_p;
+		rate_table->mdiv = min_m;
+		rate_table->sdiv = min_s;
+		rate_table->kdiv = 0;
+		return 0;
+	}
+	return -1;
+}
+
+static int _clk_pll141xx_is_enabled(struct pwrcal_clk *clk)
+{
+	return (int)(pwrcal_getbit(clk->offset, PLL141XX_ENABLE));
+}
+
+static int _clk_pll141xx_enable(struct pwrcal_clk *clk)
+{
+	int timeout;
+
+	if (pwrcal_getbit(clk->offset, PLL141XX_ENABLE))
+		return 0;
+
+	pwrcal_setbit(clk->offset, PLL141XX_ENABLE, 1);
+
+	for (timeout = 0;; timeout++) {
+		if (pwrcal_getbit(clk->offset, PLL141XX_LOCKED))
+			break;
+		if (timeout > CLK_WAIT_CNT)
+			return -1;
+		cpu_relax();
+	}
+
+	return 0;
+}
+
+static int _clk_pll1419x_enable(struct pwrcal_clk *clk)
+{
+	int timeout;
+
+	if (pwrcal_getbit(clk->offset, PLL141XX_ENABLE))
+		return 0;
+
+	pwrcal_setbit(clk->offset, PLL141XX_ENABLE, 1);
+
+	for (timeout = 0;; timeout++) {
+		if (pwrcal_getbit(MIF0_PLL_CON0, PLL141XX_LOCKED))
+			break;
+		if (timeout > CLK_WAIT_CNT)
+			return -1;
+		cpu_relax();
+	}
+	for (timeout = 0;; timeout++) {
+		if (pwrcal_getbit(MIF1_PLL_CON0, PLL141XX_LOCKED))
+			break;
+		if (timeout > CLK_WAIT_CNT)
+			return -1;
+		cpu_relax();
+	}
+	for (timeout = 0;; timeout++) {
+		if (pwrcal_getbit(MIF2_PLL_CON0, PLL141XX_LOCKED))
+			break;
+		if (timeout > CLK_WAIT_CNT)
+			return -1;
+		cpu_relax();
+	}
+	for (timeout = 0;; timeout++) {
+		if (pwrcal_getbit(MIF3_PLL_CON0, PLL141XX_LOCKED))
+			break;
+		if (timeout > CLK_WAIT_CNT)
+			return -1;
+		cpu_relax();
+	}
+
+	return 0;
+}
+
+
+static int _clk_pll141xx_disable(struct pwrcal_clk *clk)
+{
+	pwrcal_setbit(clk->offset, PLL141XX_ENABLE, 0);
+
+	return 0;
+}
+
+int _clk_pll141xx_is_disabled_bypass(struct pwrcal_clk *clk)
+{
+	if (pwrcal_getbit(clk->offset + 1, PLL141XX_BYPASS))
+		return 0;
+
+	return 1;
+}
+
+
+int _clk_pll141xx_set_bypass(struct pwrcal_clk *clk, int bypass_disable)
+{
+	if (bypass_disable == 0)
+		pwrcal_setbit(clk + 1, PLL141XX_BYPASS, 1);
+	else
+		pwrcal_setbit(clk + 1, PLL141XX_BYPASS, 0);
+
+	return 0;
+}
+
+static int _clk_pll141xx_set_pms(struct pwrcal_clk *clk,
+				const struct pwrcal_pll_rate_table  *rate_table)
+{
+	unsigned int mdiv, pdiv, sdiv, pll_con0;
+
+	int timeout;
+
+	pdiv = rate_table->pdiv;
+	mdiv = rate_table->mdiv;
+	sdiv = rate_table->sdiv;
+
+	pll_con0 = pwrcal_readl(clk->offset);
+	pll_con0 &= ~((PLL141XX_MDIV_MASK << PLL141XX_MDIV_SHIFT)
+			| (PLL141XX_PDIV_MASK << PLL141XX_PDIV_SHIFT)
+			| (PLL141XX_SDIV_MASK << PLL141XX_SDIV_SHIFT));
+	pll_con0 |=  (mdiv << PLL141XX_MDIV_SHIFT)
+			| (pdiv << PLL141XX_PDIV_SHIFT)
+			| (sdiv << PLL141XX_SDIV_SHIFT);
+	pll_con0 &= ~(1<<26);
+	pll_con0 |= (1<<5);
+
+	pwrcal_writel(clk->status, pdiv*150);
+	pwrcal_writel(clk->offset, pll_con0);
+
+	if (pll_con0 & (1 << PLL141XX_ENABLE)) {
+		for (timeout = 0;; timeout++) {
+			if (pwrcal_getbit(clk->offset, PLL141XX_LOCKED))
+				break;
+			if (timeout > CLK_WAIT_CNT)
+				return -1;
+			cpu_relax();
+		}
+	}
+
+	return 0;
+
+}
+
+static int _clk_pll1419x_set_pms(struct pwrcal_clk *clk,
+				const struct pwrcal_pll_rate_table  *rate_table)
+{
+	unsigned int mdiv, pdiv, sdiv, pll_con0;
+
+	int timeout;
+
+	pdiv = rate_table->pdiv;
+	mdiv = rate_table->mdiv;
+	sdiv = rate_table->sdiv;
+
+	pll_con0 = pwrcal_readl(clk->offset);
+	pll_con0 &= ~((PLL141XX_MDIV_MASK << PLL141XX_MDIV_SHIFT)
+			| (PLL141XX_PDIV_MASK << PLL141XX_PDIV_SHIFT)
+			| (PLL141XX_SDIV_MASK << PLL141XX_SDIV_SHIFT));
+	pll_con0 |=  (mdiv << PLL141XX_MDIV_SHIFT)
+			| (pdiv << PLL141XX_PDIV_SHIFT)
+			| (sdiv << PLL141XX_SDIV_SHIFT);
+
+	pwrcal_writel(MIF0_PLL_LOCK, pdiv*150);
+	pwrcal_writel(MIF1_PLL_LOCK, pdiv*150);
+	pwrcal_writel(MIF2_PLL_LOCK, pdiv*150);
+	pwrcal_writel(MIF3_PLL_LOCK, pdiv*150);
+	pwrcal_writel(clk->offset, pll_con0);
+
+	if (pll_con0 & (1 << PLL141XX_ENABLE)) {
+		for (timeout = 0;; timeout++) {
+			if (pwrcal_getbit(MIF0_PLL_CON0, PLL141XX_LOCKED))
+				break;
+			if (timeout > CLK_WAIT_CNT)
+				return -1;
+			cpu_relax();
+		}
+		for (timeout = 0;; timeout++) {
+			if (pwrcal_getbit(MIF1_PLL_CON0, PLL141XX_LOCKED))
+				break;
+			if (timeout > CLK_WAIT_CNT)
+				return -1;
+			cpu_relax();
+		}
+		for (timeout = 0;; timeout++) {
+			if (pwrcal_getbit(MIF2_PLL_CON0, PLL141XX_LOCKED))
+				break;
+			if (timeout > CLK_WAIT_CNT)
+				return -1;
+			cpu_relax();
+		}
+		for (timeout = 0;; timeout++) {
+			if (pwrcal_getbit(MIF3_PLL_CON0, PLL141XX_LOCKED))
+				break;
+			if (timeout > CLK_WAIT_CNT)
+				return -1;
+			cpu_relax();
+		}
+	}
+
+	return 0;
+
+}
+
+
+static int _clk_pll141xx_set_rate(struct pwrcal_clk *clk,
+					unsigned long long rate)
+{
+	struct pwrcal_pll *pll = to_pll(clk);
+	struct pll_spec *pll_spec;
+	struct pwrcal_pll_rate_table  tmp_rate_table;
+	const struct pwrcal_pll_rate_table  *rate_table;
+
+	if (rate == 0) {
+		if (_clk_pll141xx_is_enabled(clk) != 0)
+			if (_clk_pll141xx_disable(clk))
+				goto errorout;
+		return 0;
+	}
+
+	rate_table = _clk_get_pll_settings(pll, rate);
+	if (rate_table == NULL) {
+		pll_spec = clk_pll_get_spec(clk);
+		if (pll_spec == NULL)
+			goto errorout;
+
+		if (_clk_pll141xx_find_pms(pll_spec, &tmp_rate_table, rate)) {
+			pr_err("can't find pms value for rate(%lldHz) of \'%s\'",
+				rate,
+				clk->name);
+			goto errorout;
+		}
+
+		rate_table = &tmp_rate_table;
+
+		pr_warn("not exist in rate table, p(%d), m(%d), s(%d), fout(%lldHz) %s",
+				rate_table->pdiv,
+				rate_table->mdiv,
+				rate_table->sdiv,
+				rate,
+				clk->name);
+	}
+
+	if (_clk_pll141xx_set_pms(clk, rate_table))
+		goto errorout;
+
+	if (rate != 0) {
+		if (_clk_pll141xx_is_enabled(clk) == 0)
+			_clk_pll141xx_enable(clk);
+	}
+	return 0;
+
+errorout:
+	return -1;
+}
+
+static int _clk_pll1419x_set_rate(struct pwrcal_clk *clk,
+					unsigned long long rate)
+{
+	struct pwrcal_pll *pll = to_pll(clk);
+	struct pll_spec *pll_spec;
+	struct pwrcal_pll_rate_table  tmp_rate_table;
+	const struct pwrcal_pll_rate_table  *rate_table;
+
+	if (rate == 0) {
+		if (_clk_pll141xx_is_enabled(clk) != 0)
+			if (_clk_pll141xx_disable(clk))
+				goto errorout;
+		return 0;
+	}
+
+	rate_table = _clk_get_pll_settings(pll, rate);
+	if (rate_table == NULL) {
+		pll_spec = clk_pll_get_spec(clk);
+		if (pll_spec == NULL)
+			goto errorout;
+
+		if (_clk_pll1419x_find_pms(pll_spec, &tmp_rate_table, rate)) {
+			pr_err("can't find pms value for rate(%lldHz) of \'%s\'",
+				rate,
+				clk->name);
+			goto errorout;
+		}
+
+		rate_table = &tmp_rate_table;
+
+		pr_warn("not exist in rate table, p(%d), m(%d), s(%d), fout(%lldHz) %s",
+				rate_table->pdiv,
+				rate_table->mdiv,
+				rate_table->sdiv,
+				rate,
+				clk->name);
+	}
+
+	_clk_pll141xx_disable(clk);
+
+	if (_clk_pll1419x_set_pms(clk, rate_table))
+		goto errorout;
+
+	if (rate != 0) {
+		if (_clk_pll141xx_is_enabled(clk) == 0)
+			_clk_pll1419x_enable(clk);
+	}
+	return 0;
+
+errorout:
+	return -1;
+}
+
+
+static unsigned long long _clk_pll141xx_get_rate(struct pwrcal_clk *clk)
+{
+	unsigned int mdiv, pdiv, sdiv, pll_con0;
+	unsigned long long fout;
+
+	if (_clk_pll141xx_is_enabled(clk) == 0)
