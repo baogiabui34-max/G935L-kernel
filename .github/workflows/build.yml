@@ -1,78 +1,17 @@
-name: Build G935L Kernel
-
-on:
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-jobs:
-  build:
-    runs-on: ubuntu-22.04
-
-    steps:
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git make bc bison flex \
-            build-essential gcc-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabi \
-            libssl-dev libelf-dev \
-            python3 cpio rsync
-
-      - name: Clone kernel source
-        run: |
-          git clone --depth=1 \
-            https://github.com/8890q/android_kernel_samsung_universal8890.git \
-            kernel
-
-      - name: Check source
+      - name: Find CPU GPU frequency code
         working-directory: kernel
         run: |
-          echo "Kernel source:"
-          git log -1 --oneline
+          echo "=== CPU frequency files ==="
+          grep -RniE "2600000|1600000|cpu.*freq|freq.*cpu|dvfs" \
+            drivers arch/arm64 2>/dev/null | head -n 200 || true
 
           echo
-          echo "Available hero2lte defconfigs:"
-          find . -iname '*hero2lte*defconfig' -print
-
-      - name: Build kernel
-        working-directory: kernel
-        run: |
-          set -o pipefail
-
-          echo "=== Configure kernel ==="
-
-          make ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            exynos8890-hero2lte_defconfig
+          echo "=== GPU / Mali files ==="
+          find drivers/gpu -type f \
+            \( -iname '*mali*' -o -iname '*dvfs*' -o -iname '*gpu*' \) \
+            -print | head -n 200
 
           echo
-          echo "=== Build kernel ==="
-
-          make -j2 \
-            ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            2>&1 | tee ../build.log
-
-      - name: Upload build logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-build-logs
-          path: build.log
-          if-no-files-found: ignore
-
-      - name: Upload kernel output
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: G935L-kernel-output
-          path: |
-            kernel/arch/arm64/boot/Image
-            kernel/arch/arm64/boot/Image.gz
-            kernel/arch/arm64/boot/dts/**/*.dtb
-          if-no-files-found: warn
+          echo "=== 800/806/900+ MHz references ==="
+          grep -RniE "806000|800000|900000|912000|912" \
+            drivers/gpu arch/arm64 2>/dev/null | head -n 200 || true
