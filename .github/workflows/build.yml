@@ -1,4 +1,4 @@
-name: Inspect G935L GPU PLL
+name: Build G935L Kernel
 
 on:
   workflow_dispatch:
@@ -7,137 +7,97 @@ permissions:
   contents: read
 
 jobs:
-  inspect:
+  build:
     runs-on: ubuntu-22.04
 
     steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git make bc bison flex \
+            build-essential \
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabi \
+            libssl-dev libelf-dev \
+            python3 cpio rsync
+
       - name: Clone kernel source
         run: |
           git clone --depth=1 \
             https://github.com/8890q/android_kernel_samsung_universal8890.git \
             kernel
 
-      - name: Inspect G3D DFS
+      - name: Check source
         working-directory: kernel
         run: |
           echo "========================================"
-          echo "G3D DFS"
+          echo "SOURCE"
           echo "========================================"
+          git log -1 --oneline
 
-          grep -RniE \
-            "dfsg3d_table|dvfs_g3d|G3D_PLL|G3D" \
-            drivers/soc/samsung/pwrcal/S5E8890 \
-            2>/dev/null | head -n 500
+          echo
+          echo "========================================"
+          echo "DEFCONFIG"
+          echo "========================================"
+          find . -iname '*hero2lte*defconfig' -print
 
-      - name: Print DFS source
+      - name: Configure kernel
+        working-directory: kernel
+        run: |
+          make ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            exynos8890-hero2lte_defconfig
+
+      - name: Build kernel
+        working-directory: kernel
+        run: |
+          set -o pipefail
+
+          make -j2 \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            2>&1 | tee ../build.log
+
+      - name: Check output
+        if: always()
         working-directory: kernel
         run: |
           echo "========================================"
-          echo "S5E8890-dfs.c"
+          echo "BUILD OUTPUT"
           echo "========================================"
 
-          sed -n '1,700p' \
-            drivers/soc/samsung/pwrcal/S5E8890/S5E8890-dfs.c
+          ls -lh arch/arm64/boot/Image 2>/dev/null || true
+          ls -lh arch/arm64/boot/Image.gz 2>/dev/null || true
 
-      - name: Inspect PLL source
-        working-directory: kernel
-        run: |
+          echo
           echo "========================================"
-          echo "G3D PLL REFERENCES"
+          echo "DTB"
           echo "========================================"
 
-          grep -n -B 40 -A 120 \
-            -E "G3D_PLL|g3d" \
-            drivers/soc/samsung/pwrcal/S5E8890/S5E8890-pll.c \
+          find arch/arm64/boot/dts \
+            -type f \
+            -name '*.dtb' \
+            -exec ls -lh {} \; \
             2>/dev/null || true
 
-      - name: Inspect PLL headers
-        working-directory: kernel
-        run: |
-          echo "========================================"
-          echo "PLL HEADERS"
-          echo "========================================"
-
-          grep -RniE \
-            "G3D_PLL|PLL_G3D|g3d_pll" \
-            drivers/soc/samsung/pwrcal/S5E8890 \
-            2>/dev/null | head -n 500
-
-      - name: Inspect CAL rate functions
-        working-directory: kernel
-        run: |
-          echo "========================================"
-          echo "CAL RATE FUNCTIONS"
-          echo "========================================"
-
-          grep -RniE \
-            "dfs_set_rate|dfs_get_rate|set_rate.*dvfs|rate_table" \
-            drivers/soc/samsung/pwrcal \
-            2>/dev/null | head -n 500
-
-      - name: Inspect GPU clock calls
-        working-directory: kernel
-        run: |
-          echo "========================================"
-          echo "GPU CLOCK CALLS"
-          echo "========================================"
-
-          grep -RniE \
-            "cal_dfs_set_rate|cal_dfs_get_rate|dvfs_g3d|GPU_MAX_CLOCK" \
-            drivers/gpu \
-            2>/dev/null | head -n 500
-
-      - name: Search all 8890 frequency values
-        working-directory: kernel
-        run: |
-          echo "========================================"
-          echo "HIGH GPU CLOCK SEARCH"
-          echo "========================================"
-
-          grep -RniE \
-            "702|728|754|806|850|875|900|912|925|950|1000" \
-            drivers/soc/samsung/pwrcal/S5E8890 \
-            drivers/gpu/arm/t8xx \
-            arch/arm64/boot/dts \
-            2>/dev/null | head -n 1000
-
-      - name: Search old Samsung 8890 sources
-        working-directory: kernel
-        run: |
-          echo "========================================"
-          echo "ALL GPU DVFS TABLES"
-          echo "========================================"
-
-          grep -RniE \
-            "\{(702|728|754|806)," \
-            drivers \
-            2>/dev/null | head -n 300
-
-      - name: Save relevant files
-        working-directory: kernel
-        run: |
-          mkdir -p ../gpu-inspect
-
-          cp \
-            drivers/soc/samsung/pwrcal/S5E8890/S5E8890-dfs.c \
-            ../gpu-inspect/S5E8890-dfs.c
-
-          cp \
-            drivers/soc/samsung/pwrcal/S5E8890/S5E8890-pll.c \
-            ../gpu-inspect/S5E8890-pll.c
-
-          cp \
-            drivers/soc/samsung/pwrcal/S5E8890/S5E8890-vclk.c \
-            ../gpu-inspect/S5E8890-vclk.c
-
-          cp \
-            drivers/soc/samsung/pwrcal/S5E8890/S5E8890-vclk.h \
-            ../gpu-inspect/S5E8890-vclk.h
-
-      - name: Upload inspection
+      - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: G935L-GPU-PLL-inspection
-          path: gpu-inspect/
+          name: kernel-build-logs
+          path: build.log
+          if-no-files-found: ignore
+
+      - name: Upload kernel output
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: G935L-kernel-output
+          path: |
+            kernel/arch/arm64/boot/Image
+            kernel/arch/arm64/boot/Image.gz
+            kernel/arch/arm64/boot/dts/**/*.dtb
           if-no-files-found: warn
