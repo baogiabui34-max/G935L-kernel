@@ -1,4 +1,4 @@
-name: Build G935L Kernel
+name: Inspect CPU Little DVFS
 
 on:
   workflow_dispatch:
@@ -7,97 +7,77 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  inspect:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git make bc bison flex \
-            build-essential \
-            gcc-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabi \
-            libssl-dev libelf-dev \
-            python3 cpio rsync
-
       - name: Clone kernel source
         run: |
           git clone --depth=1 \
             https://github.com/8890q/android_kernel_samsung_universal8890.git \
             kernel
 
-      - name: Check source
+      - name: Inspect little CPU DVFS
         working-directory: kernel
         run: |
           echo "========================================"
-          echo "SOURCE"
+          echo "CL0 / LITTLE DVFS TABLE"
           echo "========================================"
-          git log -1 --oneline
 
-          echo
-          echo "========================================"
-          echo "DEFCONFIG"
-          echo "========================================"
-          find . -iname '*hero2lte*defconfig' -print
+          grep -n -B 10 -A 60 \
+            "cl0_dvfs_table" \
+            arch/arm64/boot/dts/exynos8890.dtsi
 
-      - name: Configure kernel
-        working-directory: kernel
-        run: |
-          make ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            exynos8890-hero2lte_defconfig
-
-      - name: Build kernel
-        working-directory: kernel
-        run: |
-          set -o pipefail
-
-          make -j2 \
-            ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            2>&1 | tee ../build.log
-
-      - name: Check output
-        if: always()
+      - name: Inspect big CPU DVFS
         working-directory: kernel
         run: |
           echo "========================================"
-          echo "BUILD OUTPUT"
+          echo "CL1 / BIG DVFS TABLE"
           echo "========================================"
 
-          ls -lh arch/arm64/boot/Image 2>/dev/null || true
-          ls -lh arch/arm64/boot/Image.gz 2>/dev/null || true
+          grep -n -B 10 -A 60 \
+            "cl1_dvfs_table" \
+            arch/arm64/boot/dts/exynos8890.dtsi
 
-          echo
+      - name: Find CPU DVFS consumers
+        working-directory: kernel
+        run: |
           echo "========================================"
-          echo "DTB"
+          echo "DVFS TABLE REFERENCES"
           echo "========================================"
 
-          find arch/arm64/boot/dts \
-            -type f \
-            -name '*.dtb' \
-            -exec ls -lh {} \; \
-            2>/dev/null || true
+          grep -RniE \
+            "cl0_dvfs_table|cl1_dvfs_table|CL_ZERO|CL_ONE" \
+            drivers/cpufreq \
+            drivers/soc/samsung \
+            arch/arm64/boot/dts \
+            2>/dev/null | head -n 500
 
-      - name: Upload build logs
+      - name: Find 1.9 GHz references
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "1.9 GHz REFERENCES"
+          echo "========================================"
+
+          grep -RniE \
+            "1900000|1890000|1900|1890" \
+            arch/arm64/boot/dts \
+            drivers/cpufreq \
+            drivers/soc/samsung \
+            2>/dev/null | head -n 300
+
+      - name: Save DTS
+        working-directory: kernel
+        run: |
+          mkdir -p ../cpu-inspect
+          cp arch/arm64/boot/dts/exynos8890.dtsi \
+            ../cpu-inspect/exynos8890.dtsi
+
+      - name: Upload inspection
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-build-logs
-          path: build.log
-          if-no-files-found: ignore
-
-      - name: Upload kernel output
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: G935L-kernel-output
-          path: |
-            kernel/arch/arm64/boot/Image
-            kernel/arch/arm64/boot/Image.gz
-            kernel/arch/arm64/boot/dts/**/*.dtb
+          name: CPU-DVFS-inspection
+          path: cpu-inspect/
           if-no-files-found: warn
