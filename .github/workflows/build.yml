@@ -1,4 +1,4 @@
-name: Inspect CPU Little DVFS
+name: Inspect CPU Max Limits
 
 on:
   workflow_dispatch:
@@ -11,73 +11,61 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Clone kernel source
+      - name: Clone kernel
         run: |
           git clone --depth=1 \
             https://github.com/8890q/android_kernel_samsung_universal8890.git \
             kernel
 
-      - name: Inspect little CPU DVFS
+      - name: Find CPU frequency limits
         working-directory: kernel
         run: |
           echo "========================================"
-          echo "CL0 / LITTLE DVFS TABLE"
-          echo "========================================"
-
-          grep -n -B 10 -A 60 \
-            "cl0_dvfs_table" \
-            arch/arm64/boot/dts/exynos8890.dtsi
-
-      - name: Inspect big CPU DVFS
-        working-directory: kernel
-        run: |
-          echo "========================================"
-          echo "CL1 / BIG DVFS TABLE"
-          echo "========================================"
-
-          grep -n -B 10 -A 60 \
-            "cl1_dvfs_table" \
-            arch/arm64/boot/dts/exynos8890.dtsi
-
-      - name: Find CPU DVFS consumers
-        working-directory: kernel
-        run: |
-          echo "========================================"
-          echo "DVFS TABLE REFERENCES"
+          echo "CPU MAX FREQUENCY LIMITS"
           echo "========================================"
 
           grep -RniE \
-            "cl0_dvfs_table|cl1_dvfs_table|CL_ZERO|CL_ONE" \
+            "1976000|1898000|3000000|2800000|cpu_max|cpu_min|max_freq|min_freq|scaling_max_freq" \
             drivers/cpufreq \
             drivers/soc/samsung \
+            arch/arm64/boot/dts \
+            2>/dev/null | head -n 1000
+
+      - name: Find DVFS domain usage
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "DVFS DOMAIN USAGE"
+          echo "========================================"
+
+          grep -RniE \
+            "dvfs_little|dvfs_big|CL_ZERO|CL_ONE|cl0_dvfs_table|cl1_dvfs_table" \
+            drivers/cpufreq \
+            drivers/soc/samsung \
+            2>/dev/null | head -n 1000
+
+      - name: Find frequency table creation
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "FREQUENCY TABLE CREATION"
+          echo "========================================"
+
+          grep -RniE \
+            "freq_table|frequency_table|dfs_get_rate_table|dfs_set_clk_information|list_level" \
+            drivers/cpufreq \
+            drivers/soc/samsung \
+            2>/dev/null | head -n 1000
+
+      - name: Find boot frequency
+        working-directory: kernel
+        run: |
+          echo "========================================"
+          echo "BOOT / START FREQUENCY"
+          echo "========================================"
+
+          grep -RniE \
+            "boot_freq|start_freq|initial_freq|policy->max|policy->min" \
+            drivers/cpufreq \
             arch/arm64/boot/dts \
             2>/dev/null | head -n 500
-
-      - name: Find 1.9 GHz references
-        working-directory: kernel
-        run: |
-          echo "========================================"
-          echo "1.9 GHz REFERENCES"
-          echo "========================================"
-
-          grep -RniE \
-            "1900000|1890000|1900|1890" \
-            arch/arm64/boot/dts \
-            drivers/cpufreq \
-            drivers/soc/samsung \
-            2>/dev/null | head -n 300
-
-      - name: Save DTS
-        working-directory: kernel
-        run: |
-          mkdir -p ../cpu-inspect
-          cp arch/arm64/boot/dts/exynos8890.dtsi \
-            ../cpu-inspect/exynos8890.dtsi
-
-      - name: Upload inspection
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: CPU-DVFS-inspection
-          path: cpu-inspect/
-          if-no-files-found: warn
